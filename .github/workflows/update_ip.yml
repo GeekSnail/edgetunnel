@@ -5,10 +5,10 @@ name: IP Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # everyday morning, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
-    - cron: "0 23 * * *"
-    # at noon, sunset, and night, get kv `proxy`, test and update the same above
-    - cron: "0 4,9,14 * * *"
+    # every two day, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
+    - cron: "0 10 */2 * *"
+    # everyday, get kv `proxy`, test and update the same above
+    - cron: "0 22 * * *"
   # Triggers the workflow on push or pull request events but only for the "main" branch
   #push:
   #  branches: [ "main" ]
@@ -60,18 +60,18 @@ jobs:
         if: ${{ ! contains(github.event.schedule, '/') && ! contains(github.event.schedule, ',') || inputs.downloadUpdatedIPFirst == 'true' }}
         run: |
           [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
-          #curl -o ip.zip https://zip.baipiao.eu.org
-          url='https://zip.baipiao.eu.org'
-          touch ip.txt
+          #url='https://zip.baipiao.eu.org'
+          url='https://zip.cm.edu.kg/all.txt'          
           cnt=0
-          while [ $cnt -lt 5 ] && ! curl --connect-timeout 10 --retry 1 -o ip.zip "$url"; do
+          while [ $cnt -lt 5 ] && ! curl --connect-timeout 10 --retry 1 "$url" -O; do
             sleep 1
             cnt=$(($cnt+1))
             echo 'retry...'
           done
-          [ -s ip.zip ] || (echo "Failed to download ip data from $url!" && exit 1);
-          unzip ip.zip -d ip
-          cat ip/*.txt | sort | uniq > ip.txt
+          [ -s all.txt ] || (echo "Failed to download ip data from $url!" && exit 1);
+          #unzip ip.zip -d ip
+          #cat ip/*.txt | sort | uniq > ip.txt
+          cat all.txt | grep 443 | sed 's/:.*//' | sort | uniq > ip.txt
           echo ipupdate `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY
 
       - name: backup original data, merge

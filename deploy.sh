@@ -99,9 +99,8 @@ deploy_worker(){
 	worker_subdomain_enabled $1 || enable_worker_subdomain $1
 }
 deploy_page(){
-	[ ! $deployPage ] && exit;
 	[ -z $1 ] && echo "CF_PAGE_NAME is required!" && return;
-	local n=$1; 
+	local n=$1 had_deployment=0; 
 	[[ $1 =~ -[a-z0-9]{3,} ]] && n=${1%-*}-***
 	echo "deploy page $n ..." >> $GITHUB_STEP_SUMMARY
 	
@@ -113,6 +112,7 @@ deploy_page(){
 	elif [ "$ret" == [] ]; then
 		configs=`generate_configs $2`
 	else
+		had_deployment=1
 		local uuid=`jq -r '.[0].env_vars.'$UUID'.value' <<< $ret`
 		local nsid=`jq -r '.[0].kv_namespaces.'$KV'.namespace_id' <<< $ret`
 		[ "$uuid" = null ] && uuid=
@@ -135,6 +135,10 @@ deploy_page(){
 		ret=`upload_page $1`
 		post_handle "$ret" "retry upload_page $n"
 	fi
+	if (( had_deployment )); then
+		sleep .5
+		CF_API_TOKEN=$CF_API_TOKEN CF_ACCOUNT_ID=$CF_ACCOUNT_ID CF_PAGES_PROJECT_NAME=$1 CF_DELETE_ALIASED_DEPLOYMENTS=true node delete-deployments.cjs
+	fi
 }
 
 deploy(){
@@ -149,8 +153,15 @@ deploy(){
 	done
 }
 
-[ -z "$workerName" ] && echo 'empty CF_WORKER_NAME' || deploy "$workerName" "$CF_WORKER_UUID" deploy_worker
-[ "$deployPage" = false ] && echo 'no deploy page' && exit
-[ -z "$pageName" ] && echo 'empty CF_PAGE_NAME' && exit
-echo >> $GITHUB_STEP_SUMMARY
-deploy "$pageName" "$CF_PAGE_UUID" deploy_page
+if [ -z "$workerName" ]; then
+	echo 'empty CF_WORKER_NAME' 
+else
+	deploy "$workerName" "$CF_WORKER_UUID" deploy_worker
+fi
+if [ -z "$pageName" ]; then 
+	echo 'empty CF_PAGE_NAME' && exit
+else
+	echo >> $GITHUB_STEP_SUMMARY
+	deploy "$pageName" "$CF_PAGE_UUID" deploy_page
+fi
+echo "`date '+%Y-%m-%d %H:%M:%S %Z%z'` deploying success 🎉" >> $GITHUB_STEP_SUMMARY

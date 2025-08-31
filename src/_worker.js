@@ -11,7 +11,48 @@ let userID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 // reversed proxy (Non-CF ISP)
 //const proxys = ["edgetunnel.anycast.eu.org","cdn.xn--b6gac.eu.org","cdn-b100.xn--b6gac.eu.org","cdn-all.xn--b6gac.eu.org"]
 // Anycast/cloudflare.com
-const domains = ["5ch.net","arca.live","brainly.com","cambridge.org","donmai.us","emojipedia.org","fbi.gov","feedback.bit.ly","fontawesome.com","freecodecamp.org","getbootstrap.com","gur.gov.ua","hdmoli.com","hubspot.com","hugedomains.com","icook.tw","indeed.com","ip.sb","iplocation.io","japan.com","leetcode.com","mdpi.com","noodlemagazine.com","okcupid.com","pcmag.com","philosophy.hku.hk","quillbot.com","russia.com","singapore.com","smallseotools.com","time.is","try.tp-link.com","udemy.com","visa.com","visa.com.hk","visa.com.sg","visa.com.tw","whatismyip.com","wto.org","www.gov.se"];
+const domains = [
+  "5ch.net",
+  "arca.live",
+  "brainly.com",
+  "cambridge.org",
+  "donmai.us",
+  "emojipedia.org",
+  "fbi.gov",
+  "feedback.bit.ly",
+  "fontawesome.com",
+  "freecodecamp.org",
+  "getbootstrap.com",
+  "gur.gov.ua",
+  "hdmoli.com",
+  "hubspot.com",
+  "hugedomains.com",
+  "icook.tw",
+  "indeed.com",
+  "ip.sb",
+  "iplocation.io",
+  "japan.com",
+  "leetcode.com",
+  "mdpi.com",
+  "noodlemagazine.com",
+  "okcupid.com",
+  "pcmag.com",
+  "philosophy.hku.hk",
+  "quillbot.com",
+  "russia.com",
+  "singapore.com",
+  "smallseotools.com",
+  "time.is",
+  "try.tp-link.com",
+  "udemy.com",
+  "visa.com",
+  "visa.com.hk",
+  "visa.com.sg",
+  "visa.com.tw",
+  "whatismyip.com",
+  "wto.org",
+  "www.gov.se",
+];
 
 // if you want to use ipv6 or single proxy, please add comment at this line and remove comment at the next line
 // use single proxy instead of random
@@ -104,7 +145,7 @@ export default {
             newHeaders.set("cf-connecting-ip", "1.2.3.4");
             newHeaders.set("x-forwarded-for", "1.2.3.4");
             newHeaders.set("x-real-ip", "1.2.3.4");
-            newHeaders.set("referer", "https://www.google.com/search?q=edtunnel");
+            newHeaders.set("referer", "https://www.google.com/");
             // Use fetch to proxy the request to 15 different domains
             const proxyUrl = "https://" + randomHostname + url.pathname + url.search;
             let modifiedRequest = new Request(proxyUrl, {
@@ -746,12 +787,12 @@ async function handleUDPOutBound(webSocket, vResponseHeader, log) {
 }
 const at = "QA==";
 const pt = "dmxlc3M=";
-const ed = "RUR0dW5uZWw=";
+const ed = "RWRnZVR1bm5lbA==";
 function vBaseConfig(uuid, address, port, host, tls = false, remark = "") {
   const tlsParam = tls ? `security=tls&sni=${host}` : "security=none";
-  return `${atob(
-    pt
-  )}://${uuid}\u0040${address}:${port}?${tlsParam}&encryption=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2048#${address}${remark}`;
+  return `${atob(pt)}://${uuid}${atob(
+    at
+  )}${address}:${port}?${tlsParam}&encryption=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2048#${address}${remark}`;
 }
 /**
  *
@@ -770,15 +811,10 @@ function getVConfig(userIDs, hostName) {
     .map(userID => {
       const vMain = vBaseConfig(userID, hostName, 443, hostName, true);
       const vSec = vBaseConfig(userID, domains[0], 443, hostName, true);
-      return `<h2>UUID: ${userID}</h2>${hashSeparator}\nv2ray default ip
+      return `<h2>UUID: ${userID}</h2>${hashSeparator}\n${atob(pt)} link with default domain
 ---------------------------------------------------------------
 ${vMain}
 <button onclick='copyToClipboard("${vMain}")'><i class="fa fa-clipboard"></i> Copy vMain</button>
----------------------------------------------------------------
-v2ray with bestip
----------------------------------------------------------------
-${vSec}
-<button onclick='copyToClipboard("${vSec}")'><i class="fa fa-clipboard"></i> Copy vSec</button>
 ---------------------------------------------------------------`;
     })
     .join("\n");
@@ -789,11 +825,9 @@ ${vSec}
   )}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
   // Prepare header string
   const header = `
-<p align='center'><img src='https://cloudflare-ipfs.com/ipfs/bafybeigd6i5aavwpr6wvnwuyayklq3omonggta4x2q7kpmgafj357nkcky' alt='图片描述' style='margin-bottom: -50px;'>
-<b style='font-size: 15px;'>Welcome! This function generates configuration for VLESS protocol. If you found this useful, please check our GitHub project for more:</b>
-<b style='font-size: 15px;'>欢迎！这是生成 VLESS 协议的配置。如果您发现这个项目很好用，请查看我们的 GitHub 项目: </b>
-<a href='https://github.com/3Kmfi6HP/EDtunnel' target='_blank'>EDtunnel - https://github.com/3Kmfi6HP/EDtunnel</a>
-<a href='//${hostName}/sub/${userIDArray[0]}' target='_blank'>VLESS 节点订阅连接</a>
+<p align='center'><img src="https://my-onedrive.pages.dev/_next/image?url=%2Ficons%2F128.png&w=32" style="height: 75px;border-radius: 50%;margin-bottom: 20px;">
+<b style='font-size: 15px;'>欢迎！这是生成 ${atob(pt)} 协议的配置。</b><br>
+<a href='//${hostName}/sub/${userIDArray[0]}' target='_blank'>${atob(pt)} 节点订阅连接</a>
 <a href='clash://install-config?url=${encodeURIComponent(
     `https://${hostName}/sub/${userIDArray[0]}?format=clash`
   )}}' target='_blank'>Clash for Windows 节点订阅连接</a>
@@ -807,13 +841,13 @@ ${vSec}
   // HTML Head with CSS and FontAwesome library
   const htmlHead = `
   <head>
-	<title>EDtunnel: VLESS configuration</title>
-	<meta name='description' content='This is a tool for generating Vless protocol configurations. Give us a star on GitHub https://github.com/3Kmfi6HP/EDtunnel if you found it useful!' />
-	<meta name='keywords' content='EDtunnel, cloudflare pages, cloudflare worker, severless' />
+	<title>${atob(ed)}: ${atob(pt)} configuration</title>
+	<meta name='description' content='This is a tool for generating ${atob(pt)} protocol configurations.' />
+	<meta name='keywords' content='${atob(ed)}, cloudflare pages, cloudflare worker, severless' />
 	<meta name='viewport' content='width=device-width, initial-scale=1' />
-	<meta property='og:site_name' content='EDtunnel: VLESS configuration' />
+	<meta property='og:site_name' content='${atob(ed)}: ${atob(pt)} configuration' />
 	<meta property='og:type' content='website' />
-	<meta property='og:title' content='EDtunnel - VLESS configuration and subscribe output' />
+	<meta property='og:title' content='${atob(ed)} - ${atob(pt)} configuration and subscribe output' />
 	<meta property='og:description' content='Use cloudflare pages and worker severless to implement v protocol' />
 	<meta property='og:url' content='https://${hostName}/' />
 	<meta property='og:image' content='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(
@@ -827,9 +861,9 @@ ${vSec}
 	  font-family: Arial, sans-serif;
 	  background-color: #f0f0f0;
 	  color: #333;
-	  padding: 10px;
+    max-width: 900px;
+    margin: auto;
 	}
-
 	a {
 	  color: #1a0dab;
 	  text-decoration: none;
@@ -838,14 +872,13 @@ ${vSec}
 	  max-width: 100%;
 	  height: auto;
 	}
-
 	pre {
 	  white-space: pre-wrap;
 	  word-wrap: break-word;
 	  background-color: #fff;
 	  border: 1px solid #ddd;
 	  padding: 15px;
-	  margin: 10px 0;
+    margin: 0;
 	}
 	/* Dark mode */
 	@media (prefers-color-scheme: dark) {
@@ -877,6 +910,12 @@ ${vSec}
   <body>
   <pre style='background-color: transparent; border: none;'>${header}</pre>
   <pre>${output}</pre>
+  <p align="center">本项目相关教程见：<a href="https://my-onedrive.pages.dev/solutions/edgetunnel">EdgeTunnel</a></p>
+  <h3 align="center">若本项目对您有帮助，请给予捐赠/打赏，以便于更好的维护与优化，感激不尽🙏</h3>
+  <div style="display:flex;margin:20px 0;">
+    <img src="https://my-onedrive.pages.dev/api/raw?path=/alipay_qrcode.jpg" style="max-width: calc(49% - 10px);margin-right: 20px;">
+    <img src="https://my-onedrive.pages.dev/api/raw?path=/wechat_reward_qrcode.png" style="max-width: calc(51% - 10px);">
+  </div>
   </body>
   <script>
 	function copyToClipboard(text) {
@@ -909,16 +948,16 @@ function createVSub(userID_Path, hostName) {
             })
             .concat(vMainHttp);
         });
-    const httpsConfigurations = Array.from(portSet_https).flatMap(port => {
-      const vMainHttps = hostName.includes("workers.dev")
-        ? []
-        : vBaseConfig(userID, hostName, port, hostName, true, `-HTTPS-${port}`);
-      return domains
-        .flatMap(domain => {
-          return vBaseConfig(userID, domain, port, hostName, true, `-HTTPS-${port}-${domain}`);
-        })
-        .concat(vMainHttps);
-    });
+    const httpsConfigurations = hostName.includes("workers.dev")
+      ? []
+      : Array.from(portSet_https).flatMap(port => {
+          const vMainHttps = vBaseConfig(userID, hostName, port, hostName, true, `-HTTPS-${port}`);
+          return domains
+            .flatMap(domain => {
+              return vBaseConfig(userID, domain, port, hostName, true, `-HTTPS-${port}-${domain}`);
+            })
+            .concat(vMainHttps);
+        });
 
     return [...httpConfigurations, ...httpsConfigurations];
   });

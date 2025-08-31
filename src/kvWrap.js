@@ -7,7 +7,7 @@ const kvWrap = {
     return this.api("list", ...args);
   },
   async delete(key) {
-    return this.api("get", key);
+    return this.api("delete", key);
   },
   async put(key, ...args) {
     return this.api("put", key, ...args);

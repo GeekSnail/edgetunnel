@@ -5,10 +5,10 @@ name: cfhost Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # every hour, get kv `cfhost`, test, merge and backup to kv `cfhost_bak`
-    - cron: "0 * * * *"
-    # every week on sunday morning, test domain in cfhostpat.json
-    - cron: "0 23 * * 6"
+    # every 2 hour, get kv `cfhost`, test, merge and backup to kv `cfhost_bak`
+    - cron: "0 */2 * * *"
+    # every sunday morning, test domain in cfhostpat.json
+    - cron: "0 22 * * 0"
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     #  branches: [ "main" ]
@@ -37,14 +37,6 @@ on:
         required: false
         default: ""
         type: "string"
-      deployPage:
-        description: "deploy worker and page (true: worker and page, false: worker)"
-        required: false
-        default: "true"
-        type: choice
-        options:
-          - true
-          - false
       proxys:
         description: "proxys json data"
         required: false
@@ -69,13 +61,13 @@ on:
         required: false
 
 env:
-  deployPage: ${{inputs.deployPage != 'false'}}
   workerName: ${{inputs.CF_WORKER_NAME || vars.CF_WORKER_NAME}}
   pageName: ${{inputs.CF_PAGE_NAME || vars.CF_PAGE_NAME}}
   pageBranch: ${{inputs.CF_PAGE_BRANCH || vars.CF_PAGE_BRANCH || 'main'}}
   EVENT_NAME: ${{github.event_name}}
   SCHEDULE: ${{github.event.schedule}}
 
+  CF_ACCOUNT_ID: ${{secrets.CF_ACCOUNT_ID}}
   CF_SCRIPT_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/workers/scripts
   CF_SERVICE_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/workers/services
   CF_PROJECT_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/pages/projects
@@ -237,7 +229,7 @@ jobs:
       - name: deploy worker, page
         env:
           CF_PAGE_ENV: ${{env.pageBranch == 'main' && 'production' || 'preview'}}
-        run: bash ./deploy.sh && echo "`date '+%Y-%m-%d %H:%M:%S %Z%z'` deploying success 🎉" >> $GITHUB_STEP_SUMMARY
+        run: bash ./deploy.sh
 
   workflow-keepalive:
     if: ${{ github.event_name == 'schedule' }}
