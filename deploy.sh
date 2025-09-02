@@ -9,9 +9,10 @@ FORM_FILE="_worker.js=@$ENTRY;type=application/javascript+module"
 MAIN_MODULE='"main_module":"_worker.js"'
 PLACEMENT='"placement":{"mode":"smart"}'
 COMPATIBILITY_DATE='"compatibility_date":"2024-06-20"'
+OBSERVABILITY='"observability":{"logs":{"enabled":true,"head_sampling_rate":1,"invocation_logs":true}}'
 #--------------------------
 upload_worker(){
-	local fMetadata='metadata={'$MAIN_MODULE,$PLACEMENT,$COMPATIBILITY_DATE',"bindings":['$2']}'
+	local fMetadata='metadata={'$MAIN_MODULE,$PLACEMENT,$COMPATIBILITY_DATE,$OBSERVABILITY',"bindings":['$2']}'
 	curl -X PUT -H "$AUTH" -H "$TYPE_FORMDATA" -F "$FORM_FILE" -F "$fMetadata" \
 		$CF_SCRIPT_API/$1
 }
@@ -24,7 +25,7 @@ get_worker_settings(){
 	curl -H "$AUTH" $CF_SCRIPT_API/$1/settings
 }
 patch_worker_settings(){
-	local fSettings='settings={'$MAIN_MODULE,$PLACEMENT,$COMPATIBILITY_DATE',"bindings":['$2']}'
+	local fSettings='settings={'$MAIN_MODULE,$PLACEMENT,$COMPATIBILITY_DATE,$OBSERVABILITY',"bindings":['$2']}'
 	curl -X PATCH -H "$AUTH" -H "$TYPE_FORMDATA" -F "$fSettings" \
 		$CF_SCRIPT_API/$1/settings
 }

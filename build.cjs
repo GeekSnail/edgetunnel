@@ -13,39 +13,34 @@ var nodejsCompatPlugin = /* @__PURE__ */ silenceWarnings => ({
       seen.clear();
       warnedPackaged.clear();
     });
-    pluginBuild.onResolve(
-      { filter: /node:.*/ },
-      async ({ path: path67, kind, resolveDir, ...opts }) => {
-        const specifier = `${path67}:${kind}:${resolveDir}:${opts.importer}`;
-        if (seen.has(specifier)) {
-          return;
-        }
-        seen.add(specifier);
-        const result = await pluginBuild.resolve(path67, {
-          kind,
-          resolveDir,
-          importer: opts.importer,
-        });
-        if (result.errors.length > 0) {
-          let pathWarnedPackaged = warnedPackaged.get(path67);
-          if (pathWarnedPackaged === void 0) {
-            warnedPackaged.set(path67, (pathWarnedPackaged = []));
-          }
-          pathWarnedPackaged.push(opts.importer);
-          return { external: true };
-        }
-        return result;
+    pluginBuild.onResolve({ filter: /node:.*/ }, async ({ path: path67, kind, resolveDir, ...opts }) => {
+      const specifier = `${path67}:${kind}:${resolveDir}:${opts.importer}`;
+      if (seen.has(specifier)) {
+        return;
       }
-    );
+      seen.add(specifier);
+      const result = await pluginBuild.resolve(path67, {
+        kind,
+        resolveDir,
+        importer: opts.importer,
+      });
+      if (result.errors.length > 0) {
+        let pathWarnedPackaged = warnedPackaged.get(path67);
+        if (pathWarnedPackaged === void 0) {
+          warnedPackaged.set(path67, (pathWarnedPackaged = []));
+        }
+        pathWarnedPackaged.push(opts.importer);
+        return { external: true };
+      }
+      return result;
+    });
     pluginBuild.onEnd(() => {
       if (!silenceWarnings) {
         warnedPackaged.forEach((importers, path67) => {
           console.warn(
             `The package "${path67}" wasn't found on the file system but is built into node.
 Your Worker may throw errors at runtime unless you enable the "nodejs_compat" compatibility flag. Refer to https://developers.cloudflare.com/workers/runtime-apis/nodejs/ for more details. Imported from:
-${importers
-  .map(i => ` - ${path.relative(pluginBuild.initialOptions.absWorkingDir ?? "/", i)}`)
-  .join("\n")}`
+${importers.map(i => ` - ${path.relative(pluginBuild.initialOptions.absWorkingDir ?? "/", i)}`).join("\n")}`
           );
         });
       }
@@ -94,7 +89,7 @@ const buildOptions = {
   external: ["__STATIC_CONTENT_MANIFEST"],
   format: "esm",
   target: "es2022",
-  sourcemap: true,
+  // sourcemap: true,
   sourceRoot: opt.outdir,
   minify: undefined,
   metafile: true,
@@ -105,19 +100,11 @@ const buildOptions = {
     global: "globalThis",
   },
   loader: { ".js": "jsx", ".mjs": "jsx", ".cjs": "jsx" },
-  plugins: [
-    ...(opt.nodeCompat
-      ? [
-          NodeGlobalsPolyfillPlugin({ buffer: true }),
-          NodeModulesPolyfillPlugin(),
-          nodejsCompatPlugin(false),
-        ]
-      : []),
-    cloudflareInternalPlugin,
-  ],
+  plugins: [...(opt.nodeCompat ? [NodeGlobalsPolyfillPlugin({ buffer: true }), NodeModulesPolyfillPlugin(), nodejsCompatPlugin(false)] : []), cloudflareInternalPlugin],
   jsxFactory: "React.createElement",
   jsxFragment: "React.Fragment",
   logLevel: "silent",
+  legalComments: "none",
 };
 
 esbuild.build(buildOptions).then(console.log);

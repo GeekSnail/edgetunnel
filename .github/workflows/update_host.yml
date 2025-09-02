@@ -5,13 +5,13 @@ name: cfhost Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # every 2 hour, get kv `cfhost`, test, merge and backup to kv `cfhost_bak`
-    - cron: "0 */2 * * *"
+    # every 4 hour, get kv `cfhost`, test, merge and backup to kv `cfhost_bak`
+    - cron: "0 */4 * * *"
     # every sunday morning, test domain in cfhostpat.json
-    - cron: "0 22 * * 0"
+    # - cron: "0 22 * * 0"
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    #  branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
       - ".gitignore"
       - ".github/workflows/test.yml"

@@ -62,14 +62,10 @@ const domains = [
 let dohURL = "https://cloudflare-dns.com/dns-query"; // or https://dns.google/dns-query
 const cf = new CF({ proxys, cfhost });
 
-if (!isValidUUID(userID)) {
-  throw new Error("uuid is invalid");
-}
-
 export default {
   /**
    * @param {import("@cloudflare/workers-types").Request} request
-   * @param {{UUID: string, PROXYIP: string, DNS_RESOLVER_URL: string, NODE_ID: int, API_HOST: string, API_TOKEN: string}} env
+   * @param {{UUID: string}} env
    * @param {import("@cloudflare/workers-types").ExecutionContext} ctx
    * @returns {Promise<Response>}
    */
@@ -77,20 +73,11 @@ export default {
     // uuid_validator(request);
     try {
       userID = env.UUID || userID;
+      if (!isValidUUID(userID)) {
+        throw new Error("uuid is invalid");
+      }
       //proxy = env.PROXY || proxy;
       dohURL = env.DOH_URL || dohURL;
-      let userID_Path = userID;
-      if (userID.includes(",")) {
-        userID_Path = userID.split(",")[0];
-      }
-      if (!cf.KV) {
-        cf.setKV(env.KV);
-        cf.loadCfhost();
-        cf.loadProxys();
-      }
-      console.log(
-        `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80].length}(80) ${cf.proxys["openai"].length}(openai), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`
-      );
       const upgradeHeader = request.headers.get("Upgrade");
       if (!upgradeHeader || upgradeHeader !== "websocket") {
         const url = new URL(request.url);
@@ -103,7 +90,7 @@ export default {
               },
             });
           }
-          case `/${userID_Path}`: {
+          case `/${userID}`: {
             const host = request.headers.get("Host");
             if (/curl|wget/.test(request.headers.get("User-Agent"))) {
               return new Response(vBaseConfig(userID, host, 443, host, true), {
@@ -111,61 +98,61 @@ export default {
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
               });
             }
-            const vConfig = getVConfig(userID, host);
-            return new Response(`${vConfig}`, {
+            return new Response(getConfig(userID, host), {
               status: 200,
-              headers: {
-                "Content-Type": "text/html; charset=utf-8",
-              },
+              headers: { "Content-Type": "text/html; charset=utf-8" },
             });
           }
-          case `/sub/${userID_Path}`: {
+          case `/sub/${userID}`: {
             const url = new URL(request.url);
-            const searchParams = url.searchParams;
-            const vSubConfig = createVSub(userID, request.headers.get("Host"));
-            // Construct and return response object
-            return new Response(btoa(vSubConfig), {
+            // const searchParams = url.searchParams;
+            return new Response(createSub(userID, request.headers.get("Host")), {
               status: 200,
-              headers: {
-                "Content-Type": "text/plain;charset=utf-8",
-              },
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
             });
           }
-          case `/bestip/${userID_Path}`: {
-            const headers = request.headers;
-            const url = `https://sub.xf.free.hr/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`;
-            const bestSubConfig = await fetch(url, { headers: headers });
-            return bestSubConfig;
+          case `/bestip/${userID}`: {
+            return fetch(`https://bestip.06151953.xyz/auto?host=${host}&uuid=${userID}&path=/`, {
+              headers: request.headers,
+            });
           }
+          case "/":
+            const { cf } = request;
+            const city = cf.city || cf.timezone.split("/")[1];
+            const whost = "https://m.weathercn.com";
+            const wUrl = whost + "/current-weather.do?partner=1000001071_hfaw";
+            const page = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+		          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>来自-${city}</title></head>
+              <body><p>${cf.country} - ${cf.region} - ${cf.city} | Timezone:${cf.timezone}</p>
+              <p><a href="/cf">查看连接信息</a></p>
+              <p><a id="link" href="${wUrl}" target="_blank">查看[<span id="cityName">${city}</span>]逐小时天气预报</a></p>
+              <script>
+                fetch('${whost}/citysearchajax.do?partner=1000001071_hfaw&q=${city.replace(/_| /g, "")}').then(r => r.json()).then(r => {
+                    let cityName = '${city}', id = '';
+                    if (r.listAccuCity) {
+                      cityName = r.listAccuCity[0].localizedName;
+                      id = r.listAccuCity[0].key;
+                      document.title = cityName + '-天气'
+                      document.querySelector('#cityName').innerText = cityName
+                      document.querySelector('#link').href = '${wUrl}&id=' + id
+                    }  
+                  })
+                  .catch(console.error);  
+              </script></body></html>`;
+            return new Response(page, { headers: { "content-type": "text/html;charset=UTF-8" } });
           default:
-            // return new Response('Not found', { status: 404 });
-            // For any other path, reverse proxy to 'random website' and return the original response, caching it in the process
-            const randomHostname = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
-            const newHeaders = new Headers(request.headers);
-            newHeaders.set("cf-connecting-ip", "1.2.3.4");
-            newHeaders.set("x-forwarded-for", "1.2.3.4");
-            newHeaders.set("x-real-ip", "1.2.3.4");
-            newHeaders.set("referer", "https://www.google.com/");
-            // Use fetch to proxy the request to 15 different domains
-            const proxyUrl = "https://" + randomHostname + url.pathname + url.search;
-            let modifiedRequest = new Request(proxyUrl, {
-              method: request.method,
-              headers: newHeaders,
-              body: request.body,
-              redirect: "manual",
-            });
-            const proxyResponse = await fetch(modifiedRequest, { redirect: "manual" });
-            // Check for 302 or 301 redirect status and return an error response
-            if ([301, 302].includes(proxyResponse.status)) {
-              return new Response(`Redirects to ${randomHostname} are not allowed.`, {
-                status: 403,
-                statusText: "Forbidden",
-              });
-            }
-            // Return the response from the proxy server
-            return proxyResponse;
+            return new Response("Not found", { status: 404 });
         }
       } else {
+        if (!cf.KV && env.KV) {
+          cf.setKV(env.KV);
+          cf.loadCfhost();
+          cf.loadProxys();
+        }
+        console.log(
+          `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80].length}(80) ${cf.proxys["openai"].length}(openai), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`
+        );
         return await vOverWSHandler(request);
       }
     } catch (err) {
@@ -244,32 +231,22 @@ async function vOverWSHandler(request) {
             return;
           }
 
-          const {
-            hasError,
-            message,
-            portRemote = 443,
-            addressRemote = "",
-            rawDataIndex,
-            vVersion = new Uint8Array([0, 0]),
-            isUDP,
-          } = processVHeader(chunk, userID);
+          const { hasError, message, portRemote = 443, addressRemote = "", rawDataIndex, vVersion = new Uint8Array([0, 0]), isUDP } = processVHeader(chunk, userID);
           address = addressRemote;
           portWithRandomLog = `${portRemote} ${isUDP ? "udp" : "tcp"} `;
           if (hasError) {
             // controller.error(message);
-            throw new Error(message); // cf seems has bug, controller.error will not end stream
+            // throw new Error(message); // cf seems has bug, controller.error will not end stream
+            return safeCloseWebSocket(webSocket, 1008, message);
           }
-
-          // If UDP and not DNS port, close it
-          if (isUDP && portRemote !== 53) {
-            throw new Error("UDP proxy only enabled for DNS which is port 53");
-            // cf seems has bug, controller.error will not end stream
+          // Handle UDP connections for DNS (port 53) only
+          if (isUDP) {
+            if (portRemote === 53) {
+              isDns = true;
+            } else {
+              return safeCloseWebSocket(webSocket, 1003, "UDP proxy only enabled for DNS which is port 53");
+            }
           }
-
-          if (isUDP && portRemote === 53) {
-            isDns = true;
-          }
-
           // ["version", "附加信息长度 N"]
           const vResponseHeader = new Uint8Array([vVersion[0], 0]);
           const rawClientData = chunk.slice(rawDataIndex);
@@ -281,15 +258,7 @@ async function vOverWSHandler(request) {
             udpStreamWrite(rawClientData);
             return;
           }
-          handleTCPOutBound(
-            remoteSocketWapper,
-            addressRemote,
-            portRemote,
-            rawClientData,
-            webSocket,
-            vResponseHeader,
-            log
-          );
+          handleTCPOutBound(remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, vResponseHeader, log);
         },
         close() {
           log(`readableWebSocketStream is close`);
@@ -321,15 +290,7 @@ async function vOverWSHandler(request) {
  * @param {function} log The logging function.
  * @returns {Promise<void>} The remote socket.
  */
-async function handleTCPOutBound(
-  remoteSocket,
-  addressRemote,
-  portRemote,
-  rawClientData,
-  webSocket,
-  vResponseHeader,
-  log
-) {
+async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawClientData, webSocket, vResponseHeader, log) {
   /**
    * Connects to a given address and port and writes data to the socket.
    * @param {string} address The address to connect to.
@@ -337,17 +298,24 @@ async function handleTCPOutBound(
    * @returns {Promise<import("@cloudflare/workers-types").Socket>} A Promise that resolves to the connected socket.
    */
   async function connectAndWrite(address, port) {
-    /** @type {import("@cloudflare/workers-types").Socket} */
-    const tcpSocket = connect({
-      hostname: address,
-      port: port,
-    });
-    remoteSocket.value = tcpSocket;
-    log(`connected to ${address}:${port}`);
-    const writer = tcpSocket.writable.getWriter();
-    await writer.write(rawClientData); // first write, nomal is tls client hello
-    writer.releaseLock();
-    return tcpSocket;
+    try {
+      /** @type {import("@cloudflare/workers-types").Socket} */
+      const tcpSocket = connect({ hostname: address, port });
+      remoteSocket.value = tcpSocket;
+      log(`connected to ${address}:${port}`);
+      const writer = tcpSocket.writable.getWriter();
+      await writer.write(rawClientData); // first write, nomal is tls client hello
+      writer.releaseLock();
+      return tcpSocket;
+    } catch (e) {
+      log("connectAndWrite error", e);
+      try {
+        if (remoteSocket.value && remoteSocket.value.close) remoteSocket.value.close();
+      } catch (e) {
+        log("Error closing remote socket", e);
+      }
+      return null;
+    }
   }
 
   /**
@@ -357,6 +325,9 @@ async function handleTCPOutBound(
   async function retry() {
     const proxy = cf.getProxy(addressRemote, portRemote);
     const tcpSocket = await connectAndWrite(proxy.host || addressRemote, portRemote);
+    if (!tcpSocket) {
+      return safeCloseWebSocket(webSocket, 1011, "Failed to reconnect to remote");
+    }
     tcpSocket.closed
       .catch(error => {
         console.log("retry tcpSocket closed error", error);
@@ -372,6 +343,9 @@ async function handleTCPOutBound(
   let r = undefined;
   if (!cfhostRE.test(addressRemote) && !cf.cfhost.has(addressRemote) && !(r = inCfcidr(addressRemote))) {
     const tcpSocket = await connectAndWrite(addressRemote, portRemote);
+    if (!tcpSocket) {
+      return safeCloseWebSocket(webSocket, 1011, "Failed to connect to remote");
+    }
     // when remoteSocket is ready, pass to websocket
     // remote--> ws
     if (!(await remoteSocketToWS(tcpSocket, webSocket, vResponseHeader, log))) {
@@ -396,12 +370,23 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
   const stream = new ReadableStream({
     start(controller) {
       webSocketServer.addEventListener("message", event => {
+        // 如果流已被取消，不再处理新消息
+        if (readableStreamCancel) {
+          return;
+        }
         const message = event.data;
         controller.enqueue(message);
       });
-
+      // The event means that the client closed the client -> server stream.
+      // However, the server -> client stream is still open until you call close() on the server side.
+      // The WebSocket protocol says that a separate close message must be sent in each direction to fully close the socket.
       webSocketServer.addEventListener("close", () => {
+        // client send close, need close server
+        // if stream is cancel, skip controller.close
         safeCloseWebSocket(webSocketServer);
+        if (readableStreamCancel) {
+          return;
+        }
         controller.close();
       });
 
@@ -423,6 +408,13 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
     },
 
     cancel(reason) {
+      // 流被取消的几种情况：
+      // 1. 当管道的 WritableStream 有错误时，这个取消函数会被调用，所以在这里处理 WebSocket 服务器的关闭
+      // 2. 如果 ReadableStream 被取消，所有 controller.close/enqueue 都需要跳过
+      // 3. 但是经过测试，即使 ReadableStream 被取消，controller.error 仍然有效
+      if (readableStreamCancel) {
+        return;
+      }
       log(`ReadableStream was canceled, due to ${reason}`);
       readableStreamCancel = true;
       safeCloseWebSocket(webSocketServer);
@@ -459,19 +451,11 @@ function processVHeader(vBuffer, userID) {
   }
 
   const version = new Uint8Array(vBuffer.slice(0, 1));
-  let isValidUser = false;
   let isUDP = false;
   const slicedBuffer = new Uint8Array(vBuffer.slice(1, 17));
-  const slicedBufferString = stringify(slicedBuffer);
-  // check if userID is valid uuid or uuids split by , and contains userID in it otherwise return error message to console
-  const uuids = userID.includes(",") ? userID.split(",") : [userID];
-  // uuid_validator(hostName, slicedBufferString);
-
-  // isValidUser = uuids.some(userUuid => slicedBufferString === userUuid.trim());
-  isValidUser =
-    uuids.some(userUuid => slicedBufferString === userUuid.trim()) ||
-    (uuids.length === 1 && slicedBufferString === uuids[0].trim());
-
+  let slicedBufferString;
+  slicedBufferString = stringify(slicedBuffer);
+  const isValidUser = slicedBufferString && slicedBufferString === userID.trim();
   console.log(`userID: ${slicedBufferString}`);
 
   if (!isValidUser) {
@@ -517,6 +501,7 @@ function processVHeader(vBuffer, userID) {
   switch (addressType) {
     case 1:
       addressLength = 4;
+      // 将 4 个字节转为点分十进制格式
       addressValue = new Uint8Array(vBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
       break;
     case 2:
@@ -528,6 +513,7 @@ function processVHeader(vBuffer, userID) {
       addressLength = 16;
       const dataView = new DataView(vBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       // 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+      // 每 2 字节构成 IPv6 地址的一部分
       const ipv6 = [];
       for (let i = 0; i < 8; i++) {
         ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -538,7 +524,7 @@ function processVHeader(vBuffer, userID) {
     default:
       return {
         hasError: true,
-        message: `invild  addressType is ${addressType}`,
+        message: `invalid  addressType is ${addressType}`,
       };
   }
   if (!addressValue) {
@@ -570,8 +556,7 @@ function processVHeader(vBuffer, userID) {
  */
 async function remoteSocketToWS(remoteSocket, webSocket, vResponseHeader, log) {
   // remote--> ws
-  let remoteChunkCount = 0;
-  let chunks = [];
+  // let remoteChunkCount = 0;
   /** @type {ArrayBuffer | null} */
   let vHeader = vResponseHeader;
   let hasIncomingData = false; // check if remoteSocket has incoming data
@@ -580,13 +565,12 @@ async function remoteSocketToWS(remoteSocket, webSocket, vResponseHeader, log) {
       new WritableStream({
         start() {},
         /**
-         *
          * @param {Uint8Array} chunk
          * @param {*} controller
          */
         async write(chunk, controller) {
           hasIncomingData = true;
-          remoteChunkCount++;
+          // remoteChunkCount++;
           if (webSocket.readyState !== WS_READY_STATE_OPEN) {
             controller.error("webSocket.readyState is not open, maybe close");
           }
@@ -620,7 +604,7 @@ async function remoteSocketToWS(remoteSocket, webSocket, vResponseHeader, log) {
   // seems is cf connect socket have error,
   // 1. Socket.closed will have error
   // 2. Socket.readable will be close without any data coming
-  //if (hasIncomingData === false && retry) {
+  //if (!hasIncomingData && retry) {
   // log(`retry`)
   // retry();
   //}
@@ -638,6 +622,7 @@ function base64ToArrayBuffer(base64Str) {
   }
   try {
     // go use modified Base64 for URL rfc4648 which js atob not support
+    // 这种变体使用 '-' 和 '_' 来代替标准 Base64 中的 '+' 和 '/'
     base64Str = base64Str.replace(/-/g, "+").replace(/_/g, "/");
     const decode = atob(base64Str);
     const arryBuffer = Uint8Array.from(decode, c => c.charCodeAt(0));
@@ -664,10 +649,10 @@ const WS_READY_STATE_CLOSING = 2;
  * Closes a WebSocket connection safely without throwing exceptions.
  * @param {import("@cloudflare/workers-types").WebSocket} socket The WebSocket connection to close.
  */
-function safeCloseWebSocket(socket) {
+function safeCloseWebSocket(socket, code, reason = "") {
   try {
     if (socket.readyState === WS_READY_STATE_OPEN || socket.readyState === WS_READY_STATE_CLOSING) {
-      socket.close();
+      code ? socket.close(code, reason) : socket.close();
     }
   } catch (error) {
     console.error("safeCloseWebSocket error", error);
@@ -706,11 +691,17 @@ function unsafeStringify(arr, offset = 0) {
 }
 
 function stringify(arr, offset = 0) {
-  const uuid = unsafeStringify(arr, offset);
-  if (!isValidUUID(uuid)) {
-    throw TypeError("Stringified UUID is invalid");
+  try {
+    const uuid = unsafeStringify(arr, offset);
+    if (!isValidUUID(uuid)) {
+      console.error("Stringified UUID is invalid");
+      return null;
+    }
+    return uuid;
+  } catch (e) {
+    console.error(e);
+    return null;
   }
-  return uuid;
 }
 
 /**
@@ -777,7 +768,6 @@ async function handleUDPOutBound(webSocket, vResponseHeader, log) {
 
   return {
     /**
-     *
      * @param {Uint8Array} chunk
      */
     write(chunk) {
@@ -787,12 +777,11 @@ async function handleUDPOutBound(webSocket, vResponseHeader, log) {
 }
 const at = "QA==";
 const pt = "dmxlc3M=";
+const cl = "Y2xhc2g=";
 const ed = "RWRnZVR1bm5lbA==";
-function vBaseConfig(uuid, address, port, host, tls = false, remark = "") {
-  const tlsParam = tls ? `security=tls&sni=${host}` : "security=none";
-  return `${atob(pt)}://${uuid}${atob(
-    at
-  )}${address}:${port}?${tlsParam}&encryption=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2048#${address}${remark}`;
+function vBaseConfig(id, addr, port, host, tls = false, mark = "") {
+  const scp = tls ? `security=tls&sni=${host}` : "security=none";
+  return `${atob(pt)}://${id}${atob(at)}${addr}:${port}?${scp}&encryption=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2048#${addr}${mark}`;
 }
 /**
  *
@@ -800,69 +789,23 @@ function vBaseConfig(uuid, address, port, host, tls = false, remark = "") {
  * @param {string | null} hostName
  * @returns {string}
  */
-function getVConfig(userIDs, hostName) {
-  const hashSeparator = "################################################################";
-
-  // Split the userIDs into an array
-  const userIDArray = userIDs.split(",");
-
-  // Prepare output string for each userID
-  const output = userIDArray
-    .map(userID => {
-      const vMain = vBaseConfig(userID, hostName, 443, hostName, true);
-      const vSec = vBaseConfig(userID, domains[0], 443, hostName, true);
-      return `<h2>UUID: ${userID}</h2>${hashSeparator}\n${atob(pt)} link with default domain
----------------------------------------------------------------
-${vMain}
-<button onclick='copyToClipboard("${vMain}")'><i class="fa fa-clipboard"></i> Copy vMain</button>
----------------------------------------------------------------`;
-    })
-    .join("\n");
-  const sublink = `https://${hostName}/sub/${userIDArray[0]}?format=clash`;
-  const subbestip = `https://${hostName}/bestip/${userIDArray[0]}`;
-  const clash_link = `https://api.v1.mk/sub?target=clash&url=${encodeURIComponent(
-    sublink
-  )}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
-  // Prepare header string
-  const header = `
-<p align='center'><img src="https://my-onedrive.pages.dev/_next/image?url=%2Ficons%2F128.png&w=32" style="height: 75px;border-radius: 50%;margin-bottom: 20px;">
-<b style='font-size: 15px;'>欢迎！这是生成 ${atob(pt)} 协议的配置。</b><br>
-<a href='//${hostName}/sub/${userIDArray[0]}' target='_blank'>${atob(pt)} 节点订阅连接</a>
-<a href='clash://install-config?url=${encodeURIComponent(
-    `https://${hostName}/sub/${userIDArray[0]}?format=clash`
-  )}}' target='_blank'>Clash for Windows 节点订阅连接</a>
-<a href='${clash_link}' target='_blank'>Clash 节点订阅连接</a>
-<a href='${subbestip}' target='_blank'>优选IP自动节点订阅</a>
-<a href='clash://install-config?url=${encodeURIComponent(subbestip)}' target='_blank'>Clash优选IP自动</a>
-<a href='sing-box://import-remote-profile?url=${encodeURIComponent(subbestip)}' target='_blank'>singbox优选IP自动</a>
-<a href='sn://subscription?url=${encodeURIComponent(subbestip)}' target='_blank'>nekobox优选IP自动</a>
-<a href='v2rayng://install-config?url=${encodeURIComponent(subbestip)}' target='_blank'>v2rayNG优选IP自动</a></p>`;
-
-  // HTML Head with CSS and FontAwesome library
-  const htmlHead = `
+function getConfig(userID, hostName) {
+  const subUrl = `//${hostName}/sub/${userID}`;
+  const cSubUrl = encodeURIComponent(`${subUrl}?format=${atob(cl)}`);
+  return `
+  <html>
   <head>
 	<title>${atob(ed)}: ${atob(pt)} configuration</title>
 	<meta name='description' content='This is a tool for generating ${atob(pt)} protocol configurations.' />
 	<meta name='keywords' content='${atob(ed)}, cloudflare pages, cloudflare worker, severless' />
 	<meta name='viewport' content='width=device-width, initial-scale=1' />
-	<meta property='og:site_name' content='${atob(ed)}: ${atob(pt)} configuration' />
-	<meta property='og:type' content='website' />
-	<meta property='og:title' content='${atob(ed)} - ${atob(pt)} configuration and subscribe output' />
-	<meta property='og:description' content='Use cloudflare pages and worker severless to implement v protocol' />
-	<meta property='og:url' content='https://${hostName}/' />
-	<meta property='og:image' content='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(
-    vBaseConfig(userIDs.split(",")[0], hostName, 443, hostName, true)
-  )}' />
-	<meta property='og:image:width' content='1500' />
-	<meta property='og:image:height' content='1500' />
-
 	<style>
 	body {
-	  font-family: Arial, sans-serif;
+	  font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 	  background-color: #f0f0f0;
 	  color: #333;
     max-width: 900px;
-    margin: auto;
+    margin: 20px auto;
 	}
 	a {
 	  color: #1a0dab;
@@ -883,34 +826,38 @@ ${vMain}
 	/* Dark mode */
 	@media (prefers-color-scheme: dark) {
 	  body {
-		background-color: #333;
-		color: #f0f0f0;
+      background-color: #333;
+      color: #f0f0f0;
 	  }
-
 	  a {
-		color: #9db4ff;
+		  color: #9db4ff;
 	  }
-
 	  pre {
-		background-color: #282a36;
-		border-color: #6272a4;
+      background-color: #282a36;
+      border-color: #6272a4;
 	  }
 	}
 	</style>
-
-	<!-- Add FontAwesome library -->
 	<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css'>
   </head>
-  `;
-
-  // Join output with newlines, wrap inside <html> and <body>
-  return `
-  <html>
-  ${htmlHead}
   <body>
-  <pre style='background-color: transparent; border: none;'>${header}</pre>
-  <pre>${output}</pre>
-  <p align="center">本项目相关教程见：<a href="https://my-onedrive.pages.dev/solutions/edgetunnel">EdgeTunnel</a></p>
+  <div align='center'>
+    <p><img src="https://avatars.githubusercontent.com/u/16624315?v=4" style="height: 75px;border-radius: 50%;"></p>
+    <h4>欢迎！这是生成 ${atob(pt)} 协议的配置。</h4>
+    <p><a href="${subUrl}" class="btn" target="_blank">${atob(pt)}订阅</a> | 
+      <a href="${atob(cl)}://install-config?url=${cSubUrl}" class="btn" target="_blank">${atob(cl)}订阅</a> | 
+      <a href="https://url.v1.mk/sub?target=${atob(
+        cl
+      )}&url=${cSubUrl}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true" class="btn" target="_blank">转${atob(cl)}格式</a> | 
+      <a href="//${hostName}/bestip/${userID}" class="btn" target="_blank">优选IP·订阅</a>
+    </p>
+  </div>
+  <pre><h3>UUID: ${userID}</h3>${atob(pt)} Configuration with default domain
+---------------------------------------------------------------
+<code>${vMain}</code>
+<button onclick='copyToClipboard("${vMain}")'> <i class="fa fa-clipboard"></i> Copy Main</button>
+---------------------------------------------------------------</pre>
+  <p align="center">本项目相关教程见：<a href="https://my-onedrive.pages.dev/solutions/${atob(ed)}">${atob(ed)}</a></p>
   <h3 align="center">若本项目对您有帮助，请给予捐赠/打赏，以便于更好的维护与优化，感激不尽🙏</h3>
   <div style="display:flex;margin:20px 0;">
     <img src="https://my-onedrive.pages.dev/api/raw?path=/alipay_qrcode.jpg" style="max-width: calc(49% - 10px);margin-right: 20px;">
@@ -934,35 +881,24 @@ ${vMain}
 const portSet_http = new Set([80, 8080, 8880, 2052, 2086, 2095, 2082]);
 const portSet_https = new Set([443, 8443, 2053, 2096, 2087, 2083]);
 
-function createVSub(userID_Path, hostName) {
-  const userIDArray = userID_Path.includes(",") ? userID_Path.split(",") : [userID_Path];
-
-  const output = userIDArray.flatMap(userID => {
-    const httpConfigurations = !hostName.includes("workers.dev")
-      ? []
-      : Array.from(portSet_http).flatMap(port => {
-          const vMainHttp = vBaseConfig(userID, hostName, port, hostName, false, `-HTTP-${port}`);
-          return domains
-            .flatMap(domain => {
-              return vBaseConfig(userID, domain, port, hostName, false, `-HTTP-${port}-${domain}`);
-            })
-            .concat(vMainHttp);
-        });
-    const httpsConfigurations = hostName.includes("workers.dev")
-      ? []
-      : Array.from(portSet_https).flatMap(port => {
-          const vMainHttps = vBaseConfig(userID, hostName, port, hostName, true, `-HTTPS-${port}`);
-          return domains
-            .flatMap(domain => {
-              return vBaseConfig(userID, domain, port, hostName, true, `-HTTPS-${port}-${domain}`);
-            })
-            .concat(vMainHttps);
-        });
-
-    return [...httpConfigurations, ...httpsConfigurations];
+function createSub(userID, hostName) {
+  const httpConf = !hostName.includes("workers.dev")
+    ? []
+    : Array.from(portSet_http).flatMap(port => {
+        const vMainHttp = vBaseConfig(userID, hostName, port, hostName, false, `-HTTP-${port}`);
+        return domains
+          .flatMap(domain => {
+            return vBaseConfig(userID, domain, port, hostName, false, `-HTTP-${port}`);
+          })
+          .concat(vMainHttp);
+      });
+  const httpsConf = Array.from(portSet_https).flatMap(port => {
+    const vMainHttps = hostName.includes("workers.dev") ? [] : vBaseConfig(userID, hostName, port, hostName, true, `-HTTPS-${port}`);
+    return domains
+      .flatMap(domain => {
+        return vBaseConfig(userID, domain, port, hostName, true, `-HTTPS-${port}`);
+      })
+      .concat(vMainHttps);
   });
-
-  return output.join("\n");
+  return btoa([...httpConf, ...httpsConf].join("\n"));
 }
-
-const cn_hostnames = ["www.chinadaily.com.cn", "www.cgtn.com", "tv.cctv.cn", "www.shanghaieye.cn"];
