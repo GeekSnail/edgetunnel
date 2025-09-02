@@ -5,8 +5,8 @@ name: IP Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # every two day, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
-    - cron: "0 10 */2 * *"
+    # every Sunday, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
+    - cron: "0 8 * * 0"
     # everyday, get kv `proxy`, test and update the same above
     - cron: "0 22 * * *"
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: download ip zip file, unzip, merge, uniq
-        if: ${{ ! contains(github.event.schedule, '/') && ! contains(github.event.schedule, ',') || inputs.downloadUpdatedIPFirst == 'true' }}
+        if: ${{ contains(github.event.schedule, '*/2') || inputs.downloadUpdatedIPFirst == 'true' }}
         run: |
           [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
           #url='https://zip.baipiao.eu.org'
