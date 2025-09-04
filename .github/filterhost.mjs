@@ -20,7 +20,10 @@ async function handleLine(filename) {
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
   for await (const line of rl) {
     const [ip, domain] = line.split(/, *| +/);
-    ip && inCfcidr(ip) && domains.push(domain);
+    if (ip && inCfcidr(ip)) {
+      console.error(domain, ip)
+      domains.push(domain);
+    }
   }
   return domains;
 }
