@@ -36,8 +36,28 @@ on:
 
 env:
   multilines: "${{vars.MULTILINES}}"
-  CF_API_TOKEN: ${{secrets.CF_API_TOKEN}}
+  # CF_API_TOKEN: ${{secrets.CF_API_TOKEN}}
+  # CF_KV_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/storage/kv/namespaces/${{secrets.CF_NAMESPACE_ID || vars.CF_NAMESPACE_ID}}/values
+  EVENT_NAME: ${{github.event_name}}
+  SCHEDULE: ${{github.event.schedule}}
+
+  CF_ACCOUNT_ID: ${{secrets.CF_ACCOUNT_ID}}
   CF_KV_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/storage/kv/namespaces/${{secrets.CF_NAMESPACE_ID || vars.CF_NAMESPACE_ID}}/values
+  CF_API_TOKEN: ${{secrets.CF_API_TOKEN}}
+  CF_NAMESPACE_ID: ${{secrets.CF_NAMESPACE_ID || vars.CF_NAMESPACE_ID}}
+  
+  CFHOST: cfhost
+  CFHOST_BAK: cfhost_bak
+  CFHOST_JSON: src/cfhost.json
+  CFHOSTPAT_JS: src/cfhostpat.js
+  CFHOSTPAT_JSON: src/cfhostpat.json
+  PROXYS: proxys
+  PROXYS_UPDATED: proxys_updated
+  PROXYS_JSON: src/proxys.json
+  ENTRY: dist/_worker.js
+  UUID: UUID
+  KV: KV
+
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -50,6 +70,68 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
+
+      - id: check-cfhost
+        name: check cfhost, merge, backup
+        run: |
+          [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
+          . .github/common.sh
+          touch remote.txt
+
+          check_backup(){
+            if once_week; then
+              echo check $CFHOSTPAT_JSON ...
+              node $CFHOSTPAT_JS toLines > pat.txt
+              filterhost pat.txt handlePat
+            fi
+            
+            json_array_tolines $CFHOST_JSON > local.txt
+            echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
+            if [ -s local.txt ] && once_day; then
+              echo check $CFHOST_JSON ...
+              filterhost local.txt > tmp
+              [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
+              file_lines_tojson tmp > $CFHOST_JSON
+              mv tmp local.txt
+              echo "filter, `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            local ret=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$CFHOST"`
+            if echo "$ret"|grep error; then
+              grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
+            elif [ ! -z "$ret" ] && [ "$ret" != "[]" ]; then
+              json_array_tolines $ret > remote.txt
+              echo "get kv $CFHOST, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+              
+              local bak=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$CFHOST_BAK"`
+              if ! echo "$bak"|grep error && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
+                json_array_tolines $bak >> remote.txt
+                sort -uo remote.txt remote.txt
+                echo "get kv $CFHOST_BAK, merge, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+              fi
+                
+              #diff -b --suppress-common-lines remote.txt local.txt | grep '<' | sed 's/< *//' > remote.txt
+              comm -23 <(sort remote.txt) <(sort local.txt) > tmp && mv tmp remote.txt
+              # diff after manually update cfhostpat.json
+              echo "diff $CFHOSTPAT_JSON ..."
+              local pat=`node $CFHOSTPAT_JS cfhostRE|sed -r 's|^/(.*)/$|\1|'`
+              while read -r d; do
+                [[ $d =~ $pat ]] && sed -i '/'$d'/d' remote.txt && echo delete $d from remote.txt
+              done < remote.txt
+              echo "diff local, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+              
+              if [ -s remote.txt ]; then
+                filterhost remote.txt > tmp && mv tmp remote.txt
+                echo "filter, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+              fi
+              ret=`file_lines_tojson remote.txt`
+              [ "$ret" != "$bak" ] && echo "kvCfhostChanged=true" >> $GITHUB_ENV;
+            
+              bak=`file_lines_tojson remote.txt`
+              echo $bak
+            fi
+          }
+          check_backup
 
       - name: kv test
         if: ${{inputs.kvKey != ''}}
