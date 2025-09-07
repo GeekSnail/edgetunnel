@@ -5,8 +5,8 @@ name: cfhost Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # every 4 hour, get kv `cfhost`, test, merge and backup to kv `cfhost_bak`
-    - cron: "0 */4 * * *"
+    # every 2 hour, get kv `cfhost`, test`
+    - cron: "0 */2 * * *"
     # every sunday morning, test domain in cfhostpat.json
     # - cron: "0 22 * * 0"
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -85,6 +85,7 @@ env:
   PROXYS: proxys
   PROXYS_UPDATED: proxys_updated
   PROXYS_JSON: src/proxys.json
+  SENSITIVE_TXT: sensitive.txt
   ENTRY: dist/_worker.js
   UUID: UUID
   KV: KV
@@ -119,7 +120,7 @@ jobs:
             
             json_array_tolines $CFHOST_JSON > local.txt
             echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
-            if [ -s local.txt ] && once_day; then
+            if [ -s local.txt ] && ( once_day || once_week ); then
               echo check $CFHOST_JSON ...
               filterhost local.txt > tmp
               [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
@@ -135,11 +136,14 @@ jobs:
               json_array_tolines $ret > remote.txt
               echo "get kv $CFHOST, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
               
-              local bak=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$CFHOST_BAK"`
-              if ! echo "$bak"|grep error && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
-                json_array_tolines $bak >> remote.txt
-                sort -uo remote.txt remote.txt
-                echo "get kv $CFHOST_BAK, merge, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+              if once_day || once_week; then
+                local bak=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$CFHOST_BAK"`
+                if ! echo "$bak"|grep error && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
+                  json_array_tolines $bak > remote_bak.txt
+                  cat remote_bak.txt >> remote.txt
+                  sort -uo remote.txt remote.txt
+                  echo "get kv $CFHOST_BAK, merge, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+                fi
               fi
                 
               #diff -b --suppress-common-lines remote.txt local.txt | grep '<' | sed 's/< *//' > remote.txt
@@ -156,15 +160,33 @@ jobs:
                 filterhost remote.txt > tmp && mv tmp remote.txt
                 echo "filter, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
               fi
-              ret=`file_lines_tojson remote.txt`
-              [ "$ret" != "$bak" ] && echo "kvCfhostChanged=true" >> $GITHUB_ENV;
-            
-              bak=`file_lines_tojson remote.txt`
-              curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
-                -d "$bak" "$CF_KV_API/$CFHOST_BAK"
-              if [ $? = 0 ] && once_day; then
+
+              if once_day || once_week; then
+                sensitivePat=`cat $SENSITIVE_TXT`
+                sensitiveHost=
+                while read -r d; do
+                if [[ $d =~ $sensitivePat ]]; then
+                    [ ! -z $sensitiveHost ] && sensitiveHost=$sensitiveHost,
+                    sensitiveHost=$sensitiveHost\"$d\"
+                    sed -i '/'$d'/d' remote.txt && echo remove sensitive $d from remote.txt
+                  fi
+                done < remote.txt
+                echo "filter sensitive, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
+
+                ret=`file_lines_tojson remote.txt`
+                if [ "$ret" != "$bak" ]; then 
+                  echo "kvCfhostChanged=true" >> $GITHUB_ENV;
+                  curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
+                    -d "$ret" "$CF_KV_API/$CFHOST_BAK"
+                fi
                 curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
-                  -d "[]" "$CF_KV_API/$CFHOST"
+                  -d "[$sensitiveHost]" "$CF_KV_API/$CFHOST"
+              else
+                rst=`file_lines_tojson remote.txt`
+                if [ "$rst" != "$ret" ]; then
+                  curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
+                    -d "$rst" "$CF_KV_API/$CFHOST"
+                fi
               fi
             fi
           }
@@ -221,15 +243,30 @@ jobs:
         with:
           node-version: 20
 
-      - name: build worker
+      - id: build
+        name: build worker
         run: |
           npm i
           npm run esbuild
 
-      - name: deploy worker, page
+      - id: deploy
+        name: deploy worker, page
+        if: steps.build.conclusion == 'success'
         env:
           CF_PAGE_ENV: ${{env.pageBranch == 'main' && 'production' || 'preview'}}
         run: bash ./deploy.sh
+
+      - name: result of audit
+        if: steps.deploy.conclusion == 'success'
+        run: |
+          if [ ! -z $pageUrl ]; then
+            # maybe new sensitive host were added to remote.txt
+            if curl "$pageUrl" | grep 'error code: 1101'; then
+              echo "The page returned 'error code: 1101'! Please check the new added hosts:" >> $GITHUB_STEP_SUMMARY
+              echo `comm -23 remote.txt remote_bak.txt` >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          fi
 
   workflow-keepalive:
     if: ${{ github.event_name == 'schedule' }}

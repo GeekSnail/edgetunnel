@@ -65,7 +65,7 @@ generate_configs(){
 }
 post_handle(){
 	# grep -qE 'success": ?false'<<< "$1" && echo $ret >&2 && return 1 || echo "$2 success" >> $GITHUB_STEP_SUMMARY
-	grep -qE 'success": ?false'<<< "$1" && echo $ret >&2 && return 1 || echo "$2 success" >&2
+	grep -qE 'success": ?false'<<< "$1" && echo $1 >&2 && return 1 || echo "$2 success" >&2
 }
 warn_no_uuid(){
 	[ "$1" != "WORKER" ] && [ "$1" != "PAGE" ] && echo error $1 && return
@@ -135,6 +135,8 @@ deploy_page(){
 		sleep .5
 		ret=`upload_page $1`
 		post_handle "$ret" "retry upload_page $n"
+	else
+		echo "pageUrl=`jq -r '.result.url' <<< $ret`" >> $GITHUB_ENV;
 	fi
 	if (( had_deployment )); then
 		sleep .5
@@ -155,12 +157,14 @@ deploy(){
 }
 
 if [ -z "$workerName" ]; then
-	echo 'empty CF_WORKER_NAME' 
+	echo 'empty CF_WORKER_NAME'
+	noWorker=true 
 else
 	deploy "$workerName" "$CF_WORKER_UUID" deploy_worker
 fi
 if [ -z "$pageName" ]; then 
-	echo 'empty CF_PAGE_NAME' && exit
+	echo 'empty CF_PAGE_NAME' 
+	[ "$noWorker" = true ] && exit 1
 else
 	echo >> $GITHUB_STEP_SUMMARY
 	deploy "$pageName" "$CF_PAGE_UUID" deploy_page

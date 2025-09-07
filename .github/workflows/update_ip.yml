@@ -7,7 +7,7 @@ on:
   schedule:
     # every Sunday, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
     - cron: "0 8 * * 0"
-    # everyday, get kv `proxy`, test and update the same above
+    # everyday, get kv `proxy`, test and update the same above, get kv `cfhost`, test and update to kv `cfhost_bak`
     - cron: "0 22 * * *"
   # Triggers the workflow on push or pull request events but only for the "main" branch
   #push:

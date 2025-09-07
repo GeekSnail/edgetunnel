@@ -91,7 +91,7 @@ const buildOptions = {
   target: "es2022",
   // sourcemap: true,
   sourceRoot: opt.outdir,
-  minify: undefined,
+  minify: true,
   metafile: true,
   conditions: ["workerd", "worker", "browser"],
   define: {
@@ -104,7 +104,6 @@ const buildOptions = {
   jsxFactory: "React.createElement",
   jsxFragment: "React.Fragment",
   logLevel: "silent",
-  legalComments: "none",
 };
 
 esbuild.build(buildOptions).then(console.log);

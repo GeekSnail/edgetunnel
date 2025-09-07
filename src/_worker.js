@@ -791,7 +791,6 @@ function vBaseConfig(id, addr, port, host, tls = false, mark = "") {
  */
 function getConfig(userID, hostName) {
   const subUrl = `//${hostName}/sub/${userID}`;
-  const cSubUrl = encodeURIComponent(`${subUrl}?format=${atob(cl)}`);
   return `
   <html>
   <head>
@@ -845,10 +844,10 @@ function getConfig(userID, hostName) {
     <p><img src="https://avatars.githubusercontent.com/u/16624315?v=4" style="height: 75px;border-radius: 50%;"></p>
     <h4>欢迎！这是生成 ${atob(pt)} 协议的配置。</h4>
     <p><a href="${subUrl}" class="btn" target="_blank">${atob(pt)}订阅</a> | 
-      <a href="${atob(cl)}://install-config?url=${cSubUrl}" class="btn" target="_blank">${atob(cl)}订阅</a> | 
-      <a href="https://url.v1.mk/sub?target=${atob(
-        cl
-      )}&url=${cSubUrl}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true" class="btn" target="_blank">转${atob(cl)}格式</a> | 
+      <a href="${atob(cl)}://install-config?url=${encodeURIComponent(subUrl)}" class="btn" target="_blank">${atob(cl)}订阅</a> | 
+      <a href="https://url.v1.mk/sub?target=${atob(cl)}&url=${encodeURIComponent(
+    subUrl
+  )}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true" class="btn" target="_blank">转${atob(cl)}格式</a> | 
       <a href="//${hostName}/bestip/${userID}" class="btn" target="_blank">优选IP·订阅</a>
     </p>
   </div>

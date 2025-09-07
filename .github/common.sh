@@ -1,8 +1,11 @@
 #!/bin/bash -x
+ONCE_HOUR='^[0-9]+ \*(\/[0-8]) \* \* \*$'
+ONCE_DAY='^[0-9]+ [0-9]+[^,\/]? \* \* \*$'
+ONCE_WEEK='^[0-9]+ [0-9]+[^,\/]? \* \* [0-6]$'
 
-ONCE_DAY='^[0-9]+ [0-9]+[^,\/] \* \* \*'
-ONCE_WEEK='^[0-9]+ [0-9]+[^,\/] \* \* [0-7]'
-
+once_hour() {
+  [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $ONCE_HOUR ]]
+}
 once_day() {
   [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $ONCE_DAY ]]
 }
@@ -13,7 +16,7 @@ once_week() {
 json_array_tolines(){
   local arr="$1"
   [ -f "$1" ] && arr=`cat $1`
-    echo "$arr"|tr -d '["]'|sed -r 's/, */\n/g'
+  echo "$arr"|tr -d '["]'|sed -r 's/, */\n/g'
 }
 
 file_lines_tojson(){
