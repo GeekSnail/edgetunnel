@@ -37,8 +37,8 @@ export default class CF {
   KEY_CFHOST = "cfhost";
 
   //_proxys; //entry
-  proxys = { 443: [], 80: [], openai: [] };
-  proxy = { 443: "", 80: "", openai: "" };
+  proxys = { 443: [], 80: [], openai: [], x: [] };
+  proxy = { 443: "", 80: "", openai: "", x: "", timestamp: 0 };
   proxysLoaded = false;
 
   _cfhost = new Set(); //entry
@@ -66,16 +66,20 @@ export default class CF {
       else this.proxy[key] = randFrom(this.proxys[key]);
     } else {
       for (let k in this.proxys) {
-        if (this.proxys[k].length && (!this.proxy[k] || !this.proxys[k].includes(this.proxy[k])))
-          this.proxy[k] = randFrom(this.proxys[k]);
+        if (this.proxys[k].length && (!this.proxy[k] || !this.proxys[k].includes(this.proxy[k]))) this.proxy[k] = randFrom(this.proxys[k]);
       }
     }
+    this.proxy.timestamp = Date.now();
   }
   getProxy(host, port) {
     let key = "";
     if (/^(\w+\.)*(openai|chatgpt)\.com$/.test(host)) {
       if (this.proxys["openai"].length) key = "openai";
       else key = 443;
+    } else if (/^(\w+\.)*(twitter|x)\.com|t.co$/.test(host)) {
+      if (this.proxys["x"].length) key = "x";
+      else key = 443;
+      if (Date.now() - this.proxy.timestamp >= 3600000) this.initProxy("x");
     } else if (/443|80/.test(port)) {
       key = port;
     }
@@ -101,12 +105,12 @@ export default class CF {
     return this.KV.get(this.KEY_PROXYS).then(r => {
       if (r && typeof r == "object") {
         if (r instanceof Array) this.proxys[443] = r;
-        else if ("443" in r) this.proxys = r;
+        else if ("443" in r) this.proxys = { ...this.proxys, ...r };
         this.initProxy();
       }
       this.proxysLoaded = true;
       console.log(
-        `KV ${this.KEY_PROXYS} loaded ${this.proxys[443].length}(443) ${this.proxys[80].length}(80) ${this.proxys["openai"].length}(openai)`
+        `KV ${this.KEY_PROXYS} loaded ${this.proxys[443].length}(443) ${this.proxys[80]?.length}(80) ${this.proxys["openai"]?.length}(openai) ${this.proxys["x"]?.length}(x)`
       );
       return this.proxys;
     });

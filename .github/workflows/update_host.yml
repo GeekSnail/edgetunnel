@@ -112,7 +112,7 @@ jobs:
           touch remote.txt
 
           check_backup(){
-            if once_week; then
+            if week_plan; then
               echo check $CFHOSTPAT_JSON ...
               node $CFHOSTPAT_JS toLines > pat.txt
               filterhost pat.txt handlePat
@@ -120,7 +120,7 @@ jobs:
             
             json_array_tolines $CFHOST_JSON > local.txt
             echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
-            if [ -s local.txt ] && ( once_day || once_week ); then
+            if [ -s local.txt ] && week_plan; then
               echo check $CFHOST_JSON ...
               filterhost local.txt > tmp
               [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
@@ -136,7 +136,7 @@ jobs:
               json_array_tolines $ret > remote.txt
               echo "get kv $CFHOST, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
               
-              if once_day || once_week; then
+              if once_day || week_plan; then
                 local bak=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$CFHOST_BAK"`
                 if ! echo "$bak"|grep error && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
                   json_array_tolines $bak > remote_bak.txt
@@ -161,7 +161,7 @@ jobs:
                 echo "filter, `wc -l remote.txt`" >> $GITHUB_STEP_SUMMARY
               fi
 
-              if once_day || once_week; then
+              if once_day || week_plan; then
                 sensitivePat=`cat $SENSITIVE_TXT`
                 sensitiveHost=
                 while read -r d; do
@@ -218,7 +218,7 @@ jobs:
             #s=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$PROXYS_UPDATED"`
             #echo "$ret"|grep error && s=0 || echo "$PROXYS_UPDATED: `date "$df" -d @$s`, now: `date "$df"`" >> $GITHUB_STEP_SUMMARY
             #if [ $((`date +%s` - $s)) -ge 7000 ]; then
-              echo "on schedule, no change no need to deploy" >> $GITHUB_STEP_SUMMARY
+              echo "on schedule $SCHEDULE, no change no need to deploy" >> $GITHUB_STEP_SUMMARY
               gh run cancel ${{ github.run_id }}
               gh run watch ${{ github.run_id }}
             #fi
@@ -261,7 +261,7 @@ jobs:
         run: |
           if [ ! -z $pageUrl ]; then
             # maybe new sensitive host were added to remote.txt
-            if curl "$pageUrl" | grep 'error code: 1101'; then
+            if curl "$pageUrl" | grep -e 'error.code..1101'; then
               echo "The page returned 'error code: 1101'! Please check the new added hosts:" >> $GITHUB_STEP_SUMMARY
               echo `comm -23 remote.txt remote_bak.txt` >> $GITHUB_STEP_SUMMARY
               exit 1

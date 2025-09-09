@@ -151,7 +151,7 @@ export default {
           cf.loadProxys();
         }
         console.log(
-          `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80].length}(80) ${cf.proxys["openai"].length}(openai), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`
+          `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80]?.length}(80) ${cf.proxys["openai"]?.length}(openai) ${cf.proxys["x"]?.length}(x), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`
         );
         return await vOverWSHandler(request);
       }
@@ -791,6 +791,7 @@ function vBaseConfig(id, addr, port, host, tls = false, mark = "") {
  */
 function getConfig(userID, hostName) {
   const subUrl = `//${hostName}/sub/${userID}`;
+  const vMain = vBaseConfig(userID, hostName, 443, hostName, true);
   return `
   <html>
   <head>
@@ -859,8 +860,8 @@ function getConfig(userID, hostName) {
   <p align="center">本项目相关教程见：<a href="https://my-onedrive.pages.dev/solutions/${atob(ed)}">${atob(ed)}</a></p>
   <h3 align="center">若本项目对您有帮助，请给予捐赠/打赏，以便于更好的维护与优化，感激不尽🙏</h3>
   <div style="display:flex;margin:20px 0;">
-    <img src="https://my-onedrive.pages.dev/api/raw?path=/alipay_qrcode.jpg" style="max-width: calc(49% - 10px);margin-right: 20px;">
-    <img src="https://my-onedrive.pages.dev/api/raw?path=/wechat_reward_qrcode.png" style="max-width: calc(51% - 10px);">
+    <img src="https://my-onedrive.pages.dev/api/raw?path=/pictures/alipay_qrcode.jpg&proxy=true" style="max-width: calc(49% - 10px);margin-right: 20px;">
+    <img src="https://my-onedrive.pages.dev/api/raw?path=/pictures/wechat_reward_qrcode.png&proxy=true" style="max-width: calc(51% - 10px);">
   </div>
   </body>
   <script>

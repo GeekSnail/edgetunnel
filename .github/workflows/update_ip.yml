@@ -5,8 +5,8 @@ name: IP Workflow
 # Controls when the workflow will run
 on:
   schedule:
-    # every Sunday, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
-    - cron: "0 8 * * 0"
+    # every Wednesday and Sunday, get ipupdate data, test and update to kv `proxy`, `proxy_bak`
+    - cron: "0 8 * * 0,3"
     # everyday, get kv `proxy`, test and update the same above, get kv `cfhost`, test and update to kv `cfhost_bak`
     - cron: "0 22 * * *"
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -57,11 +57,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: download ip zip file, unzip, merge, uniq
-        if: ${{ contains(github.event.schedule, '*/2') || inputs.downloadUpdatedIPFirst == 'true' }}
+        if: ${{ contains(github.event.schedule, '* * 0') || inputs.downloadUpdatedIPFirst == 'true' }}
         run: |
           [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
           #url='https://zip.baipiao.eu.org'
-          url='https://zip.cm.edu.kg/all.txt'          
+          url='https://zip.cm.edu.kg/all.txt'
           cnt=0
           while [ $cnt -lt 5 ] && ! curl --connect-timeout 10 --retry 1 "$url" -O; do
             sleep 1
@@ -82,9 +82,10 @@ jobs:
               grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
             elif [ ! -z "$ret" ] && ! echo "$ret"|grep '443":\[\]'; then
               echo "$ret" |tr -d '{"[]}'|sed -r 's/, */\n/g'|sed -r '/^\w*:$/d'|sed -r 's/^\w*:([\d\.]*)/\1/' >> ip.txt
-              if [ $key == $PROXYS ]; then
-                curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
-              fi
+              # if [ $key == $PROXYS ]; then
+              #   curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
+              # fi
+              break;
             fi
           done
           echo `cat $PROXYS_JSON`|tr -d '["]'|sed -r 's/, */\n/g' >> ip.txt
@@ -99,6 +100,7 @@ jobs:
           TRACE_URL="$TRACE_HOST$TRACE_PATH"
           OPENAI_HOST='android.chat.openai.com'; OPENAI_PATH='/public-api/mobile/server_status/v1'; 
           OPENAI_URL="$OPENAI_HOST$OPENAI_PATH"
+          X_HOST='twitter.com'
           # ip port host path method?
           req_data(){
             local p=http; [ $2 -eq 443 ] && p=https
@@ -197,14 +199,21 @@ jobs:
           probe_openai(){
             [ -z $1 ] && echo 'error: no ip' && return
             local ip=$1 port=443 p=https
-            local r=`curl -A "UA" --connect-timeout 5 -s -w ' code=%{http_code} time=%{time_connect}' --connect-to $OPENAI_HOST:$port:$ip:$port $p://$OPENAI_URL`
+            local r=`curl -A "UA" --connect-timeout 5 -s -w ' code=%{http_code}' --connect-to $OPENAI_HOST:$port:$ip:$port $p://$OPENAI_URL`
             eval `echo $r|sed -r 's/^.*(code=.*)$/local \1/'`
-            #local ms=`echo "scale=0; $time*1000/1" | bc`
             [ ! -z $code ] && [ $code != 000 ] && echo $ip:$port $r
             if [ $code = 200 ]; then
               echo $ip >> ipopenai.txt
             elif [ $code != 400 ] || echo "$r"|grep 'html'; then
               sed -i '/'$ip'/d' ip$port.txt
+            fi
+          }
+          probe_x(){
+            [ -z $1 ] && echo 'error: no ip' && return
+            local ip=$1 port=443 p=https
+            eval `curl -A "UA" --connect-timeout 5 -so /dev/null -w 'local code=%{http_code}' --connect-to $X_HOST:$port:$ip:$port $p://$X_HOST/`
+            if [ "$code" = 302 ] || [ "$code" = 200 ]; then
+              echo $ip >> ipx.txt
             fi
           }
 
@@ -218,22 +227,25 @@ jobs:
           while IFS= read -r ip; do
             probe_http $ip 443
           done < ip.txt
+          echo "databak={\"443\":[$(echo `sed -r 's/^(.*)$/"\1"/' ip443.txt`|tr -s ' ' ',')]}" >> $GITHUB_ENV;
           while IFS= read -r ip; do
-            probe_openai $ip
             probe_http $ip 80
+            probe_openai $ip
+            probe_x $ip
           done < ip443.txt
           echo `wc -l ip443.txt`| tee $GITHUB_STEP_SUMMARY
           echo `wc -l ip80.txt` | tee -a $GITHUB_STEP_SUMMARY
           echo `wc -l ipopenai.txt`| tee -a $GITHUB_STEP_SUMMARY
+          echo `wc -l ipx.txt`| tee -a $GITHUB_STEP_SUMMARY
 
       - id: put-data
         name: update valid ip to server
         run: |
           data=
-          for i in 443 80 openai; do
+          for i in 443 80 openai x; do
             [ ! -z $data ] && data=$data,
             if [ -s ip$i.txt ]; then
-              head -n 200 ip$i.txt > tmp && mv tmp ip$i.txt
+              head -n 300 ip$i.txt > tmp && mv tmp ip$i.txt
               data=$data\"$i\":[$(echo `sed -r 's/^(.*)$/"\1"/' ip$i.txt`|tr -s ' ' ',')]
             else
               data=$data\"$i\":[]
@@ -241,9 +253,11 @@ jobs:
           done
           data={$data}
           curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
-            -d "$data" "$CF_KV_API/$PROXYS" >> $GITHUB_STEP_SUMMARY
+            -d "$databak" "$CF_KV_API/$PROXYS_BAK"
           curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
-            -d "`date +%s`" "$CF_KV_API/$PROXYS_UPDATED"
+            -d "$data" "$CF_KV_API/$PROXYS"
+          curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
+            -d "`date '+%F %T %Z%z'`" "$CF_KV_API/$PROXYS_UPDATED"
           echo "data=$data" >> $GITHUB_OUTPUT
 
       - name: upload ip file
@@ -254,6 +268,7 @@ jobs:
             ip443.txt
             ip80.txt
             ipopenai.txt
+            ipx.txt
 
   deploy:
     needs: update-ip

@@ -1,7 +1,8 @@
 #!/bin/bash -x
-ONCE_HOUR='^[0-9]+ \*(\/[0-8]) \* \* \*$'
-ONCE_DAY='^[0-9]+ [0-9]+[^,\/]? \* \* \*$'
-ONCE_WEEK='^[0-9]+ [0-9]+[^,\/]? \* \* [0-6]$'
+ONCE_HOUR='^[0-9]+ \* \* \* \*$'
+ONCE_DAY='^[0-9]+ [0-9]+ \* \* \*$'
+ONCE_WEEK='^[0-9]+ [0-9]+ \* \* [0-6]$'
+WEEK_PLAN='^[0-9]+ [0-9]+ \* \* [0-6]((,[0-6])+)?$'
 
 once_hour() {
   [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $ONCE_HOUR ]]
@@ -11,6 +12,9 @@ once_day() {
 }
 once_week() {
   [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $ONCE_WEEK ]]
+}
+week_plan() {
+  [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $WEEK_PLAN ]]
 }
 
 json_array_tolines(){
