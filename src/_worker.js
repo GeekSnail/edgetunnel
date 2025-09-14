@@ -9,56 +9,73 @@ import cfhost from "./cfhost.json";
 let userID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 // reversed proxy (Non-CF ISP)
-//const proxys = ["edgetunnel.anycast.eu.org","cdn.xn--b6gac.eu.org","cdn-b100.xn--b6gac.eu.org","cdn-all.xn--b6gac.eu.org"]
+//const proxys = ["cdn-b100.xn--b6gac.eu.org"]
 // Anycast/cloudflare.com
 const domains = [
   "5ch.net",
-  "arca.live",
+  "acm.org",
+  "activehosted.com",
+  "ahrefs.com",
+  "auth0.com",
   "brainly.com",
   "cambridge.org",
-  "donmai.us",
+  "cf.090227.xyz",
+  "cf.877774.xyz",
+  "cf.zhetengsha.eu.org",
+  "codecanyon.net",
+  "crazygames.com",
+  "deepl.com",
+  "digitalocean.com",
+  "doordash.com",
   "emojipedia.org",
   "fbi.gov",
-  "feedback.bit.ly",
-  "fontawesome.com",
   "freecodecamp.org",
   "getbootstrap.com",
+  "gitbook.io",
+  "congress.gov",
   "gur.gov.ua",
   "hdmoli.com",
+  "hostinger.in",
   "hubspot.com",
-  "hugedomains.com",
   "icook.tw",
+  "ikea.com",
+  "iloveimg.com",
   "indeed.com",
   "ip.sb",
   "iplocation.io",
-  "japan.com",
   "leetcode.com",
-  "mdpi.com",
   "noodlemagazine.com",
   "okcupid.com",
   "pcmag.com",
   "philosophy.hku.hk",
+  "futbin.com",
   "quillbot.com",
-  "russia.com",
-  "singapore.com",
+  "shopify.com",
+  "slickdeals.net",
   "smallseotools.com",
+  "stackexchange.com",
+  "superuser.com",
+  "thingiverse.com",
   "time.is",
   "try.tp-link.com",
   "udemy.com",
+  "upwork.com",
+  "uspto.gov",
   "visa.com",
   "visa.com.hk",
   "visa.com.sg",
   "visa.com.tw",
+  "vecteezy.com",
   "whatismyip.com",
+  "worldbank.org",
   "wto.org",
   "www.gov.se",
 ];
-
-// if you want to use ipv6 or single proxy, please add comment at this line and remove comment at the next line
-// use single proxy instead of random
-//let proxy = 'cdn.xn--b6gac.eu.org';
-// ipv6 proxy example remove comment to use
-//let proxy6 = "2a01:4f8:c2c:123f:64:5:6810:c55a"
+let cfipApi = [
+  "https://addressesapi.090227.xyz/CloudFlareYes",
+  "https://ip.164746.xyz/ipTop10.html",
+  "https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt",
+];
 let dohURL = "https://cloudflare-dns.com/dns-query"; // or https://dns.google/dns-query
 const cf = new CF({ proxys, cfhost });
 
@@ -104,38 +121,38 @@ export default {
             });
           }
           case `/sub/${userID}`: {
-            const url = new URL(request.url);
-            // const searchParams = url.searchParams;
-            return new Response(createSub(userID, request.headers.get("Host")), {
+            // const url = new URL(request.url); const searchParams = url.searchParams;
+            if (env.CFIP_API) cfipApi = env.CFIP_API.split(/[\s|,]+/);
+            return new Response(await createSub(userID, request.headers), {
               status: 200,
               headers: { "Content-Type": "text/plain;charset=utf-8" },
             });
           }
           case `/bestip/${userID}`: {
-            return fetch(`https://bestip.06151953.xyz/auto?host=${host}&uuid=${userID}&path=/`, {
+            return fetch(`https://bestip.06151953.xyz/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, {
               headers: request.headers,
             });
           }
           case "/":
-            const { cf } = request;
-            const city = cf.city || cf.timezone.split("/")[1];
-            const whost = "https://m.weathercn.com";
-            const wUrl = whost + "/current-weather.do?partner=1000001071_hfaw";
+            const { cf: c } = request;
+            const city = c.city || c.timezone.split("/")[1];
+            const wh = "https://m.weathercn.com";
+            const wu = wh + "/current-weather.do?partner=1000001071_hfaw";
             const page = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 		          <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>来自-${city}</title></head>
-              <body><p>${cf.country} - ${cf.region} - ${cf.city} | Timezone:${cf.timezone}</p>
+              <body><p>${c.country} - ${c.region} - ${c.city} | Timezone:${c.timezone}</p>
               <p><a href="/cf">查看连接信息</a></p>
-              <p><a id="link" href="${wUrl}" target="_blank">查看[<span id="cityName">${city}</span>]逐小时天气预报</a></p>
+              <p><a id="link" href="${wu}" target="_blank">查看[<span id="cityName">${city}</span>]逐小时天气预报</a></p>
               <script>
-                fetch('${whost}/citysearchajax.do?partner=1000001071_hfaw&q=${city.replace(/_| /g, "")}').then(r => r.json()).then(r => {
+                fetch('${wh}/citysearchajax.do?partner=1000001071_hfaw&q=${city.replace(/_| /g, "")}').then(r => r.json()).then(r => {
                     let cityName = '${city}', id = '';
                     if (r.listAccuCity) {
                       cityName = r.listAccuCity[0].localizedName;
                       id = r.listAccuCity[0].key;
                       document.title = cityName + '-天气'
                       document.querySelector('#cityName').innerText = cityName
-                      document.querySelector('#link').href = '${wUrl}&id=' + id
+                      document.querySelector('#link').href = '${wu}&id=' + id
                     }  
                   })
                   .catch(console.error);  
@@ -881,7 +898,17 @@ function getConfig(userID, hostName) {
 const portSet_http = new Set([80, 8080, 8880, 2052, 2086, 2095, 2082]);
 const portSet_https = new Set([443, 8443, 2053, 2096, 2087, 2083]);
 
-function createSub(userID, hostName) {
+async function createSub(userID, headers) {
+  if (!/\.(\d+)$/.test(domains[domains.length - 1])) {
+    let ps = cfipApi.map(u =>
+      fetch(u, { headers })
+        .then(r => r.text())
+        .catch(e => "")
+    );
+    let ips = await Promise.allSettled(ps).then(rs => rs.reduce((acc, r) => (!r.value.includes("html") && acc.push(...r.value.split(/[^\.\d]+/)), acc), []).filter(e => e));
+    if (ips.length) domains.push(...ips);
+  }
+  const hostName = request.get("Host");
   const httpConf = !hostName.includes("workers.dev")
     ? []
     : Array.from(portSet_http).flatMap(port => {

@@ -18,8 +18,8 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
-      downloadUpdatedIP:
-        description: "download the daily updated IP data from baipiao.eu.org first before merging the IP data"
+      downloadIP:
+        description: "download the updated IP data first before merging the IP data?"
         required: false
         default: "true"
         type: choice
@@ -56,23 +56,31 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      - name: download ip zip file, unzip, merge, uniq
-        if: ${{ contains(github.event.schedule, '* * 0') || inputs.downloadUpdatedIPFirst == 'true' }}
+      - name: download ip file
+        if: ${{ contains(github.event.schedule, '* * 0') || inputs.downloadIP == 'true' }}
         run: |
           [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
-          #url='https://zip.baipiao.eu.org'
-          url='https://zip.cm.edu.kg/all.txt'
-          cnt=0
-          while [ $cnt -lt 5 ] && ! curl --connect-timeout 10 --retry 1 "$url" -O; do
-            sleep 1
-            cnt=$(($cnt+1))
-            echo 'retry...'
+          get(){
+            local cnt=0
+            while [ $cnt -lt 3 ] && ! curl --connect-timeout 10 --retry 1 "$1" -o $2; do
+              sleep 1
+              cnt=$(($cnt+1))
+              echo 'retry...'
+            done
+            [ $cnt -lt 3 ]
+          }
+          for url in https://zip.cm.edu.kg/all.txt https://ipdb.api.030101.xyz/?type=proxy; do
+            if get $url all.txt && [ -s all.txt ]; then
+              if grep 443 all.txt; then
+                grep 443 all.txt | sed 's/:.*//' | sort | uniq > ip.txt
+              else
+                mv all.txt ip.txt
+              fi
+              echo ipupdate `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY
+              break
+            fi
           done
           [ -s all.txt ] || (echo "Failed to download ip data from $url!" && exit 1);
-          #unzip ip.zip -d ip
-          #cat ip/*.txt | sort | uniq > ip.txt
-          cat all.txt | grep 443 | sed 's/:.*//' | sort | uniq > ip.txt
-          echo ipupdate `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY
 
       - name: backup original data, merge
         run: |

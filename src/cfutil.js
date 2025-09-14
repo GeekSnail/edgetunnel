@@ -36,7 +36,6 @@ export default class CF {
   KEY_PROXYS = "proxys";
   KEY_CFHOST = "cfhost";
 
-  //_proxys; //entry
   proxys = { 443: [], 80: [], openai: [], x: [] };
   proxy = { 443: "", 80: "", openai: "", x: "", timestamp: 0 };
   proxysLoaded = false;
@@ -89,11 +88,12 @@ export default class CF {
     return this.loadKey(this.KEY_CFHOST);
   }
   loadKey(key) {
-    if (this[key + "Loaded"]) return Promise.resolve();
+    if (this[key + "Loaded"]) return Promise.resolve(this[key]);
     return this.KV.get(key).then(r => {
       if (r && r instanceof Array) {
         this[key + "Raw"] = true;
-        for (let e of r) this[key].add(e);
+        if ("add" in this[key]) for (let e of r) this[key].add(e);
+        else this[key].push(...r);
       }
       this[key + "Loaded"] = true;
       console.log(`KV ${key} loaded ${this[key].size}`);

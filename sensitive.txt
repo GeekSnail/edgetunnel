@@ -1,1 +1,1 @@
-vless|v2ray
+vless|v2ray|cdn(\-all)?.xn--b6gac.eu.org

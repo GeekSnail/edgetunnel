@@ -54,7 +54,7 @@ on:
       CF_API_TOKEN:
         required: true
       CF_NAMESPACE_ID:
-        required: false
+        required: true
       CF_WORKER_UUID:
         required: false
       CF_PAGE_UUID:
@@ -165,7 +165,7 @@ jobs:
                 sensitivePat=`cat $SENSITIVE_TXT`
                 sensitiveHost=
                 while read -r d; do
-                if [[ $d =~ $sensitivePat ]]; then
+                  if [[ $d =~ $sensitivePat ]]; then
                     [ ! -z $sensitiveHost ] && sensitiveHost=$sensitiveHost,
                     sensitiveHost=$sensitiveHost\"$d\"
                     sed -i '/'$d'/d' remote.txt && echo remove sensitive $d from remote.txt
@@ -176,6 +176,7 @@ jobs:
                 ret=`file_lines_tojson remote.txt`
                 if [ "$ret" != "$bak" ]; then 
                   echo "kvCfhostChanged=true" >> $GITHUB_ENV;
+                  # echo `comm -23 remote.txt remote_bak.txt`
                   curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
                     -d "$ret" "$CF_KV_API/$CFHOST_BAK"
                 fi
@@ -260,11 +261,18 @@ jobs:
         if: steps.deploy.conclusion == 'success'
         run: |
           if [ ! -z $pageUrl ]; then
-            # maybe new sensitive host were added to remote.txt
-            if curl "$pageUrl" | grep -e 'error.code..1101'; then
-              echo "The page returned 'error code: 1101'! Please check the new added hosts:" >> $GITHUB_STEP_SUMMARY
-              echo `comm -23 remote.txt remote_bak.txt` >> $GITHUB_STEP_SUMMARY
-              exit 1
+            pageUrl=`echo $pageUrl | sed -r 's/\w+\.(.*)\.pages/\1.pages/'`
+            sleep 1m
+            r=`curl --connect-timeout 5 --retry 1 -s -w ' code=%{http_code}' $pageUrl`
+            eval `echo $r|sed -r 's/^.*(code=.*)$/\1/'`
+            if [ "$code" = 500 ]; then
+              echo $r
+              # maybe new sensitive host were added to remote.txt
+              if echo $r | grep -e 'error.code..1101'; then
+                echo "The page returned 'error code: 1101'! Please check the new added hosts:" >> $GITHUB_STEP_SUMMARY
+                echo `comm -23 remote.txt remote_bak.txt` >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
             fi
           fi
 
