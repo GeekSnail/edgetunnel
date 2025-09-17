@@ -47,10 +47,12 @@ env:
 jobs:
   # This workflow contains a single job called "build"
   update-ip:
+    if: github.repository_owner == 'GeekSnail'
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     outputs:
-      data: ${{ steps.put-data.outputs.data }}
+      shouldDeploy: ${{ steps.put-data.outputs.shouldDeploy }}
+      # data: ${{ steps.put-data.outputs.data }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -266,7 +268,18 @@ jobs:
             -d "$data" "$CF_KV_API/$PROXYS"
           curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" \
             -d "`date '+%F %T %Z%z'`" "$CF_KV_API/$PROXYS_UPDATED"
-          echo "data=$data" >> $GITHUB_OUTPUT
+          # echo "data=$data" >> $GITHUB_OUTPUT
+
+          echo $data > $PROXYS_JSON
+          if [ `git diff $PROXYS_JSON | wc -l` != 0 ]; then
+            git config user.name "GitHub Actions Bot"
+            git config user.email "<>"
+            git add $PROXYS_JSON
+            git commit -m "update $PROXYS_JSON"
+            git push
+            echo "$PROXYS_JSON changed." >> $GITHUB_STEP_SUMMARY
+            echo "shouldDeploy=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: upload ip file
         uses: actions/upload-artifact@v4
@@ -279,14 +292,16 @@ jobs:
             ipx.txt
 
   deploy:
+    if: github.repository_owner == 'GeekSnail'
     needs: update-ip
     uses: ./.github/workflows/update_host.yml
     with:
-      proxys: ${{ needs.update-ip.outputs.data }}
+      shouldDeploy: ${{ needs.update-ip.outputs.shouldDeploy }}
+      # proxys: ${{ needs.update-ip.outputs.data }}
     secrets: inherit
 
   workflow-keepalive:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.repository_owner == 'GeekSnail' && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
       actions: write

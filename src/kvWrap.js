@@ -49,7 +49,8 @@ const kvWrap = {
       //   val = JSON.parse(val);
       // }
     } catch (err) {
-      console.error("KV error", err);
+      if (op == "put") throw err;
+      else console.error("KV error", err);
     }
     return val;
   },

@@ -141,7 +141,7 @@ export default {
             const page = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 		          <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>来自-${city}</title></head>
-              <body><p>${c.country} - ${c.region} - ${c.city} | Timezone:${c.timezone}</p>
+              <body><p>${c.country} - ${c.region || c.country} - ${c.city} | Timezone:${c.timezone}</p>
               <p><a href="/cf">查看连接信息</a></p>
               <p><a id="link" href="${wu}" target="_blank">查看[<span id="cityName">${city}</span>]逐小时天气预报</a></p>
               <script>
@@ -340,17 +340,15 @@ async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawCli
    * @returns {Promise<void>} A Promise that resolves when the retry is complete.
    */
   async function retry() {
-    const proxy = cf.getProxy(addressRemote, portRemote);
+    const proxy = await cf.getProxy(addressRemote, portRemote);
     const tcpSocket = await connectAndWrite(proxy.host || addressRemote, portRemote);
     if (!tcpSocket) {
       return safeCloseWebSocket(webSocket, 1011, "Failed to reconnect to remote");
     }
     tcpSocket.closed
       .catch(error => {
-        console.log("retry tcpSocket closed error", error);
-        if (/HTTP|fetch/i.test(error) && proxy.host) {
-          cf.deleteProxy(proxy);
-        }
+        console.error("retry tcpSocket closed error", error);
+        if (/HTTP|fetch/i.test(error) && proxy.host) cf.deleteProxy(proxy);
       })
       .finally(() => {
         safeCloseWebSocket(webSocket);
@@ -807,7 +805,7 @@ function vBaseConfig(id, addr, port, host, tls = false, mark = "") {
  * @returns {string}
  */
 function getConfig(userID, hostName) {
-  const subUrl = `//${hostName}/sub/${userID}`;
+  const subUrl = `https://${hostName}/sub/${userID}`;
   const vMain = vBaseConfig(userID, hostName, 443, hostName, true);
   return `
   <html>
@@ -874,22 +872,14 @@ function getConfig(userID, hostName) {
 <code>${vMain}</code>
 <button onclick='copyToClipboard("${vMain}")'> <i class="fa fa-clipboard"></i> Copy Main</button>
 ---------------------------------------------------------------</pre>
-  <p align="center">本项目相关教程见：<a href="https://my-onedrive.pages.dev/solutions/${atob(ed)}">${atob(ed)}</a></p>
-  <h3 align="center">若本项目对您有帮助，请给予捐赠/打赏，以便于更好的维护与优化，感激不尽🙏</h3>
-  <div style="display:flex;margin:20px 0;">
-    <img src="https://my-onedrive.pages.dev/api/raw?path=/pictures/alipay_qrcode.jpg&proxy=true" style="max-width: calc(49% - 10px);margin-right: 20px;">
-    <img src="https://my-onedrive.pages.dev/api/raw?path=/pictures/wechat_reward_qrcode.png&proxy=true" style="max-width: calc(51% - 10px);">
-  </div>
+  <p align="center">相关说明见：<a href="https://my-onedrive.pages.dev/solutions/${atob(ed)}">${atob(ed)}</a></p>
+  <h3 align="center">若对您有帮助，可考虑给予支持，以便于后续的维护与优化，感激不尽🙏</h3>
   </body>
   <script>
 	function copyToClipboard(text) {
 	  navigator.clipboard.writeText(text)
-		.then(() => {
-		  alert("Copied to clipboard");
-		})
-		.catch((err) => {
-		  console.error("Failed to copy to clipboard:", err);
-		});
+		.then(() => alert("Copied to clipboard"))
+		.catch(console.error);
 	}
   </script>
   </html>`;
@@ -906,9 +896,9 @@ async function createSub(userID, headers) {
         .catch(e => "")
     );
     let ips = await Promise.allSettled(ps).then(rs => rs.reduce((acc, r) => (!r.value.includes("html") && acc.push(...r.value.split(/[^\.\d]+/)), acc), []).filter(e => e));
-    if (ips.length) domains.push(...ips);
+    if (ips.length) domains.push(...ips.slice(0, 90));
   }
-  const hostName = request.get("Host");
+  const hostName = headers.get("Host");
   const httpConf = !hostName.includes("workers.dev")
     ? []
     : Array.from(portSet_http).flatMap(port => {

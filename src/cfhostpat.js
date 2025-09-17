@@ -1,7 +1,6 @@
 import cfhostpat from "./cfhostpat.json" assert { type: "json" };
 
-const cfdomain =
-  "cloudflare(insights|previews|stream|storage|workers|-ipfs|-dns)?.(com|tv|dev)|(workers|pages).dev|one.one.one.one";
+const cfdomain = "cloudflare(insights|previews|stream|storage|workers|-ipfs|-dns)?.(com|tv|dev)|(workers|pages).dev|one.one.one.one";
 
 export function remove(data, domains) {
   let pat,
@@ -52,7 +51,7 @@ export default cfhostRE;
 
 if (typeof process != "undefined") {
   (function () {
-    if (!process.argv[1].includes("cfhostpat")) return;
+    if (!process.argv[1] || !process.argv[1].includes("cfhostpat")) return;
     const argv = process.argv.slice(2);
     const arg = argv.shift();
     if (arg) {

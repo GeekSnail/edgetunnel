@@ -17,12 +17,15 @@ week_plan() {
   [ -z "$SCHEDULE" ] || [[ "$SCHEDULE" =~ $WEEK_PLAN ]]
 }
 
+orig_owner() {
+  [ "$OWNER" = 'GeekSnail' ]
+}
+
 json_array_tolines(){
   local arr="$1"
   [ -f "$1" ] && arr=`cat $1`
   echo "$arr"|tr -d '["]'|sed -r 's/, */\n/g'
 }
-
 file_lines_tojson(){
   local uniq=0; 
   [ "$1" = '-u' ] && uniq=1 && shift;

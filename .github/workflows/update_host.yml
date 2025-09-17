@@ -44,21 +44,22 @@ on:
 
   workflow_call:
     inputs:
-      proxys:
-        description: "proxys json data"
-        required: true
+      shouldDeploy:
+        description: "if it is needed to deploy"
+        required: false
+        default: "false"
         type: "string"
-    secrets:
-      CF_ACCOUNT_ID:
-        required: true
-      CF_API_TOKEN:
-        required: true
-      CF_NAMESPACE_ID:
-        required: true
-      CF_WORKER_UUID:
-        required: false
-      CF_PAGE_UUID:
-        required: false
+    # secrets:
+    #   CF_ACCOUNT_ID:
+    #     required: true
+    #   CF_API_TOKEN:
+    #     required: true
+    #   CF_NAMESPACE_ID:
+    #     required: true
+    #   CF_WORKER_UUID:
+    #     required: false
+    #   CF_PAGE_UUID:
+    #     required: false
 
 env:
   workerName: ${{inputs.CF_WORKER_NAME || vars.CF_WORKER_NAME}}
@@ -66,6 +67,7 @@ env:
   pageBranch: ${{inputs.CF_PAGE_BRANCH || vars.CF_PAGE_BRANCH || 'main'}}
   EVENT_NAME: ${{github.event_name}}
   SCHEDULE: ${{github.event.schedule}}
+  OWNER: ${{github.repository_owner}}
 
   CF_ACCOUNT_ID: ${{secrets.CF_ACCOUNT_ID}}
   CF_SCRIPT_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/workers/scripts
@@ -112,7 +114,7 @@ jobs:
           touch remote.txt
 
           check_backup(){
-            if week_plan; then
+            if orig_owner && week_plan; then
               echo check $CFHOSTPAT_JSON ...
               node $CFHOSTPAT_JS toLines > pat.txt
               filterhost pat.txt handlePat
@@ -120,7 +122,7 @@ jobs:
             
             json_array_tolines $CFHOST_JSON > local.txt
             echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
-            if [ -s local.txt ] && week_plan; then
+            if orig_owner && week_plan && [ -s local.txt ]; then
               echo check $CFHOST_JSON ...
               filterhost local.txt > tmp
               [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
@@ -207,11 +209,11 @@ jobs:
             git add $CFHOST_JSON $CFHOSTPAT_JSON
             git commit -m "updated local $CFHOST"
             git push
-            echo "local $CFHOST changed" >> $GITHUB_STEP_SUMMARY
+            echo "local $CFHOST changed." >> $GITHUB_STEP_SUMMARY
             localCfhostChanged=true
           fi
           if [ "$kvCfhostChanged" != true ] && [ "$localCfhostChanged" != true ]; then
-            [ ! -z '${{ inputs.proxys }}' ] || [ $EVENT_NAME != schedule ] && exit;
+            ([ '${{ inputs.shouldDeploy }}' = 'true' ] || [ $EVENT_NAME = push ] || [ $EVENT_NAME = workflow_dispatch ]) && exit;
             
             # cancel when trigger on schedule # [ -z `git diff --name-only $BEFORE $AFTER 2>&1` ]
             # and when now - (updated time of proxys data) >= 7200s
@@ -233,9 +235,9 @@ jobs:
           file_lines_tojson -u remote.txt local.txt > $CFHOST_JSON
           if [ ! -z '${{ inputs.proxys }}' ]; then
             echo '${{ inputs.proxys }}' > $PROXYS_JSON
-          else
+          elif ! grep '"' $PROXYS_JSON; then
             ret=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$PROXYS"`
-            grep error <<< "$ret" && echo "$ret" || echo "$ret" > $PROXYS_JSON
+            grep error <<< "$ret" && echo "$ret" >> $GITHUB_STEP_SUMMARY && exit 1 || echo "$ret" > $PROXYS_JSON
           fi
 
       - name: setup node
@@ -263,7 +265,7 @@ jobs:
           if [ ! -z $pageUrl ]; then
             pageUrl=`echo $pageUrl | sed -r 's/\w+\.(.*)\.pages/\1.pages/'`
             sleep 1m
-            r=`curl --connect-timeout 5 --retry 1 -s -w ' code=%{http_code}' $pageUrl`
+            r=`curl -A 'Mozilla Safari Chrome' --connect-timeout 5 --retry 1 -s -w ' code=%{http_code}' $pageUrl`
             eval `echo $r|sed -r 's/^.*(code=.*)$/\1/'`
             if [ "$code" = 500 ]; then
               echo $r
