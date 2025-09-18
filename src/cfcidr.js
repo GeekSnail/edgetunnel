@@ -5,53 +5,55 @@ const cfcidr = [{"1":[[0,-1],[257,-1]],"8":[[1680,-2],[1682,-1],[2535,-1],[2708,
 // https://stackoverflow.com/questions/10306690/what-is-a-regular-expression-which-will-match-a-valid-domain-name-without-a-subd
 
 const ver = { 4: { partLen: 8, partShift: 256 }, 6: { partLen: 16, partShift: 65536 } };
-const domainPat = /^((?!-))(xn--)?[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]{0,1}\.(xn--)?([a-z0-9\-]{1,61}|[a-z0-9-]{1,30}\.[a-z]{2,})$/i
-// return: invalid host -> undefined, 
-//         domain notin -> false, 
-//         ip notin -> 0, 
+// const domainPat = /^((?!-))(xn--)?[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]{0,1}\.(xn--)?([a-z0-9\-]{1,61}|[a-z0-9-]{1,30}\.[a-z]{2,})$/i
+const domainPat = /^((xn--)?[a-z0-9]([a-z0-9-]{0,60}[a-z0-9])?\.){1,3}[a-z]{2,}$/i;
+// return: invalid host -> undefined,
+//         domain notin -> false,
+//         ip notin -> 0,
 //         ip in -> ip version
 export default function inCfcidr(host, list = cfcidr) {
-	let ip, ipLeft = 0, ipMid = 0, r=0;
-	const c = (o) => {
-		let i = 0;
-		for (; i<list['maxGroupingPrefixLen']/o['partLen']; i++)
-			ipLeft = ipLeft * o['partShift'] + ip[i];
-		if (! list[ipLeft])
-			return false;
-		list = list[ipLeft];
-		for (; i<ip.length; i++) 
-			ipMid = ipMid * o['partShift'] + ip[i];
-		return true;
-	}
-	if (host.includes(':')) {
-		list = list[1]
-		ip = host.split(':').map(p=>p==''?0:Number('0x'+p)).slice(0, list['maxPrefixLen']/16);
-		if(! c(ver[6])) return r;
-		r = 6;
-	} else if (ip = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)) {
-		//let ip = host.split(".").map(Number);
-		list = list[0]
-		ip = ip.slice(1, 1+list['maxPrefixLen']/8).map(Number)
-		if(! c(ver[4])) return r;
-		r = 4;
-	} else return domainPat.test(host) ? false : undefined;
-  
-	if (ipMid < list[0][0])
-		return 0; //
-	// Binary search
-	let x = 0, y = list.length-1, mid;
-	while (x <= y) {
-		mid = Math.floor((x + y) / 2);
-		if (ipMid == list[mid][0])
-			return r;
-		else if (ipMid < list[mid][0])
-			y = mid-1;
-		else
-			x = mid+1;
-	}
-	// Match
-	let masked = ipMid & list[y][1];
-	return (masked ^ list[y][0]) ? 0 : r;
+  let ip,
+    ipLeft = 0,
+    ipMid = 0,
+    r = 0;
+  const c = o => {
+    let i = 0;
+    for (; i < list["maxGroupingPrefixLen"] / o["partLen"]; i++) ipLeft = ipLeft * o["partShift"] + ip[i];
+    if (!list[ipLeft]) return false;
+    list = list[ipLeft];
+    for (; i < ip.length; i++) ipMid = ipMid * o["partShift"] + ip[i];
+    return true;
+  };
+  if (host.includes(":")) {
+    list = list[1];
+    ip = host
+      .split(":")
+      .map(p => (p == "" ? 0 : Number("0x" + p)))
+      .slice(0, list["maxPrefixLen"] / 16);
+    if (!c(ver[6])) return r;
+    r = 6;
+  } else if ((ip = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/))) {
+    //let ip = host.split(".").map(Number);
+    list = list[0];
+    ip = ip.slice(1, 1 + list["maxPrefixLen"] / 8).map(Number);
+    if (!c(ver[4])) return r;
+    r = 4;
+  } else return domainPat.test(host) ? false : undefined;
+
+  if (ipMid < list[0][0]) return 0; //
+  // Binary search
+  let x = 0,
+    y = list.length - 1,
+    mid;
+  while (x <= y) {
+    mid = Math.floor((x + y) / 2);
+    if (ipMid == list[mid][0]) return r;
+    else if (ipMid < list[mid][0]) y = mid - 1;
+    else x = mid + 1;
+  }
+  // Match
+  let masked = ipMid & list[y][1];
+  return masked ^ list[y][0] ? 0 : r;
 }
 
 /* console.time();

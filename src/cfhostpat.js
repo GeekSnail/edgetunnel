@@ -1,4 +1,4 @@
-import cfhostpat from "./cfhostpat.json" assert { type: "json" };
+import cfhostpat from "./cfhostpat.json" with { type: "json" };
 
 const cfdomain = "cloudflare(insights|previews|stream|storage|workers|-ipfs|-dns)?.(com|tv|dev)|(workers|pages).dev|one.one.one.one";
 
