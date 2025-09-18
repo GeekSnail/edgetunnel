@@ -50,6 +50,8 @@ jobs:
     if: github.repository_owner == 'GeekSnail'
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    env:
+      AUTH: "Authorization:Bearer ${{secrets.CF_API_TOKEN}}"
     outputs:
       shouldDeploy: ${{ steps.put-data.outputs.shouldDeploy }}
       # data: ${{ steps.put-data.outputs.data }}
@@ -87,13 +89,13 @@ jobs:
       - name: backup original data, merge
         run: |
           for key in $PROXYS_BAK $PROXYS; do
-            ret=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$key"`
+            ret=`curl -H "$AUTH" "$CF_KV_API/$key"`
             if echo "$ret"|grep error; then
               grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
             elif [ ! -z "$ret" ] && ! echo "$ret"|grep '443":\[\]'; then
               echo "$ret" |tr -d '{"[]}'|sed -r 's/, */\n/g'|sed -r '/^\w*:$/d'|sed -r 's/^\w*:([\d\.]*)/\1/' >> ip.txt
               # if [ $key == $PROXYS ]; then
-              #   curl -X PUT -H "Authorization:Bearer $CF_API_TOKEN" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
+              #   curl -X PUT -H "$AUTH" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
               # fi
               break;
             fi
@@ -250,8 +252,6 @@ jobs:
 
       - id: put-data
         name: update valid ip to server
-        env:
-          AUTH: "Authorization:Bearer ${{env.CF_API_TOKEN}}"
         run: |
           data=
           for i in 443 80 openai x; do

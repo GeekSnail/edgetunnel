@@ -88,6 +88,8 @@ jobs:
   build-deploy:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    env:
+      AUTH: "Authorization:Bearer ${{secrets.CF_API_TOKEN}}"
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -98,8 +100,6 @@ jobs:
 
       - id: check-cfhost
         name: check cfhost, merge, backup
-        env:
-          AUTH: "Authorization:Bearer ${{env.CF_API_TOKEN}}"
         run: |
           [ -z $CF_ACCOUNT_ID ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
           . .github/common.sh
@@ -195,7 +195,7 @@ jobs:
             git config user.name "GitHub Actions Bot"
             git config user.email "<>"
             git add $CFHOST_JSON $CFHOSTPAT_JSON
-            git commit -m "updated local $CFHOST"
+            git commit -m "update local $CFHOST"
             git push
             echo "local $CFHOST changed." >> $GITHUB_STEP_SUMMARY
             localCfhostChanged=true
@@ -206,7 +206,7 @@ jobs:
             # cancel when trigger on schedule # [ -z `git diff --name-only $BEFORE $AFTER 2>&1` ]
             # and when now - (updated time of proxys data) >= 7200s
             #df='+%Y-%m-%d %H:%M:%S %z'
-            #s=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$PROXYS_UPDATED"`
+            #s=`curl -H "$AUTH" "$CF_KV_API/$PROXYS_UPDATED"`
             #echo "$ret"|grep error && s=0 || echo "$PROXYS_UPDATED: `date "$df" -d @$s`, now: `date "$df"`" >> $GITHUB_STEP_SUMMARY
             #if [ $((`date +%s` - $s)) -ge 7000 ]; then
               echo "on schedule $SCHEDULE, no change no need to deploy" >> $GITHUB_STEP_SUMMARY
@@ -224,7 +224,7 @@ jobs:
           if [ ! -z '${{ inputs.proxys }}' ]; then
             echo '${{ inputs.proxys }}' > $PROXYS_JSON
           elif ! grep '"' $PROXYS_JSON; then
-            ret=`curl -H "Authorization:Bearer $CF_API_TOKEN" "$CF_KV_API/$PROXYS"`
+            ret=`curl -H "$AUTH" "$CF_KV_API/$PROXYS"`
             grep error <<< "$ret" && echo "$ret" >> $GITHUB_STEP_SUMMARY && exit 1 || echo "$ret" > $PROXYS_JSON
           fi
 

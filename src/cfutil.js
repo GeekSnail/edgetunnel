@@ -73,7 +73,7 @@ export default class CF {
         if (arr.length && (!this.proxy[k] || !arr.includes(this.proxy[k]))) this.proxy[k] = randFrom(arr);
       }
     }
-    this.proxy.timestamp = Date.now();
+    // this.proxy.timestamp = Date.now();
   }
   async getProxy(host, port) {
     let key = 443;
@@ -81,7 +81,7 @@ export default class CF {
       key = this.proxys.openai && this.proxys.openai.length ? "openai" : 443;
     } else if (/^((\w+\.)*(twitter|x)\.com|t\.co)$/.test(host)) {
       key = this.proxys.x && this.proxys.x.length ? "x" : 443;
-      if (Date.now() - this.proxy.timestamp >= 3600000) this.initProxy("x");
+      // if (Date.now() - this.proxy.timestamp >= 3600000) this.initProxy("x");
     } else if (port == 80) {
       key = port;
     }
