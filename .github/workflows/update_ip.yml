@@ -244,6 +244,7 @@ jobs:
             probe_http $ip 80
             probe_openai $ip
             probe_x $ip
+            [ `sed -n '$=' ipx.txt` -ge 300 ] && [ `sed -n '$=' ip80.txt` -ge 10 ] && break;
           done < ip443.txt
           echo `wc -l ip443.txt`| tee $GITHUB_STEP_SUMMARY
           echo `wc -l ip80.txt` | tee -a $GITHUB_STEP_SUMMARY
