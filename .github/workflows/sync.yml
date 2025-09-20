@@ -38,7 +38,8 @@ jobs:
       - name: Sync check
         if: failure()
         run: |
-          echo "[Error] Due to a change in the workflow file of the upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork."
+          echo "[Error] Due to a commit conflict with the upstream repository, GitHub has automatically suspended the scheduled automatic update! >> $GITHUB_STEP_SUMMARY 
+          echo "You need to manually sync your fork! (Click 'Sync fork' - 'Discard..')" >> $GITHUB_STEP_SUMMARY
           exit 1
 
   deploy:
