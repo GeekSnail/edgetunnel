@@ -93,14 +93,14 @@ jobs:
             if echo "$ret"|grep error; then
               grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
             elif [ ! -z "$ret" ] && ! echo "$ret"|grep '443":\[\]'; then
-              echo "$ret" |tr -d '{"[]}'|sed -r 's/, */\n/g'|sed -r '/^\w*:$/d'|sed -r 's/^\w*:([\d\.]*)/\1/' >> ip.txt
+              echo "$ret" |tr -d '{ "[]}'|sed -r 's/\w+://g' |tr -s ',' '\n' >> ip.txt
               # if [ $key == $PROXYS ]; then
               #   curl -X PUT -H "$AUTH" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
               # fi
               break;
             fi
           done
-          echo `cat $PROXYS_JSON`|tr -d '["]'|sed -r 's/, */\n/g' >> ip.txt
+          echo `cat $PROXYS_JSON`|tr -d '{ "[]}'|sed -r 's/\w+://g' |tr -s ',' '\n' >> ip.txt
           cat ip.txt | sort | uniq > tmp.txt
           mv tmp.txt ip.txt
           echo merge `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY

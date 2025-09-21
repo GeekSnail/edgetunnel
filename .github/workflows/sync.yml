@@ -39,8 +39,10 @@ jobs:
       - name: Sync check
         if: failure()
         run: |
-          echo "[Error] Due to a commit conflict with the upstream repository, GitHub has automatically suspended the scheduled automatic update! >> $GITHUB_STEP_SUMMARY 
-          echo "You need to manually sync your fork! (Click 'Sync fork' - 'Discard..')" >> $GITHUB_STEP_SUMMARY
+          # if git diff --name-only HEAD upstream/main -- .github/workflows | grep .; then
+          echo "⚠ 上游仓库的 workflow 文件有更新" >> $GITHUB_STEP_SUMMARY
+          echo "❌ 由于 GitHub 限制，无法自动同步 workflow 文件" >> $GITHUB_STEP_SUMMARY
+          echo "👉 请前往仓库页，点击 **Sync fork → Update branch / Discard commits** 来手动更新" >> $GITHUB_STEP_SUMMARY
           exit 1
 
   deploy:
