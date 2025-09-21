@@ -21,7 +21,9 @@ jobs:
     steps:
       # Step 1: run a standard checkout action, provided by github
       - name: Checkout target repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_SYNC_TOKEN || github.token }}
 
       # Step 2: run the sync action
       - name: Sync upstream changes
