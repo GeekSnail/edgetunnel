@@ -107,6 +107,7 @@ jobs:
 
           check_backup(){
             if orig_owner && week_plan; then
+              [ $EVENT_NAME = workflow_call ] && git pull --rebase
               echo check $CFHOSTPAT_JSON ...
               node $CFHOSTPAT_JS toLines > pat.txt
               filterhost pat.txt handlePat

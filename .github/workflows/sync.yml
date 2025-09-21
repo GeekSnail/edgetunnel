@@ -32,6 +32,7 @@ jobs:
           upstream_sync_branch: main
           target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          git_config_pull_rebase: true
           # Set test_mode true during manual dispatch to run tests instead of the true action!!
           test_mode: ${{ inputs.sync_test_mode }}
 
