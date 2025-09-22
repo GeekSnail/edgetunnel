@@ -29,13 +29,15 @@ on:
 
 env:
   EVENT_NAME: ${{github.event_name}}
+  CF_ACCOUNT_ID: ${{secrets.CF_ACCOUNT_ID}}
   CF_API_TOKEN: ${{secrets.CF_API_TOKEN}}
   CF_NAMESPACE_ID: ${{secrets.CF_NAMESPACE_ID || vars.CF_NAMESPACE_ID}}
   CF_KV_API: https://api.cloudflare.com/client/v4/accounts/${{secrets.CF_ACCOUNT_ID}}/storage/kv/namespaces/${{secrets.CF_NAMESPACE_ID || vars.CF_NAMESPACE_ID}}/values
+  AUTH: "Authorization:Bearer ${{secrets.CF_API_TOKEN}}"
   PING_API: https://api.globalping.io/v1/measurements
-  PING_LIMIT: ${{vars.PING_COUNTRY || 3}}
-  PING_COUNTRY: ${{vars.PING_COUNTRY || 'HK'}}
-  HTTP_DELAY: ${{vars.HTTP_DELAY || 1000}}
+  PING_LIMIT: 3
+  PING_COUNTRY: "HK"
+  HTTP_DELAY: 1000
   TRACE_HOST: ${{vars.TRACE_HOST || 'time.cloudflare.com'}}
   TRACE_PATH: /cdn-cgi/trace
   PROXYS: proxys
@@ -50,236 +52,27 @@ jobs:
     if: github.repository_owner == 'GeekSnail'
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    env:
-      AUTH: "Authorization:Bearer ${{secrets.CF_API_TOKEN}}"
     outputs:
-      shouldDeploy: ${{ steps.put-data.outputs.shouldDeploy }}
-      # data: ${{ steps.put-data.outputs.data }}
+      shouldDeploy: ${{ steps.put-ip.outputs.shouldDeploy }}
+      # data: ${{ steps.put-ip.outputs.data }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      - name: download ip file
+      - name: download ip
         if: ${{ contains(github.event.schedule, '* * 0') || inputs.downloadIP == 'true' }}
-        run: |
-          [ -z ${{secrets.CF_ACCOUNT_ID}} ] || [ -z $CF_API_TOKEN ] || [ -z $CF_NAMESPACE_ID ] && echo "secrets and CF_NAMESPACE_ID required!" && exit 1;
-          get(){
-            local cnt=0
-            while [ $cnt -lt 3 ] && ! curl --connect-timeout 10 --retry 1 "$1" -o $2; do
-              sleep 1
-              cnt=$(($cnt+1))
-              echo 'retry...'
-            done
-            [ $cnt -lt 3 ]
-          }
-          for url in https://zip.cm.edu.kg/all.txt https://ipdb.api.030101.xyz/?type=proxy; do
-            if get $url all.txt && [ -s all.txt ]; then
-              if grep 443 all.txt; then
-                grep 443 all.txt | sed 's/:.*//' | sort | uniq > ip.txt
-              else
-                mv all.txt ip.txt
-              fi
-              echo ipupdate `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY
-              break
-            fi
-          done
-          [ -s all.txt ] || (echo "Failed to download ip data from $url!" && exit 1);
+        run: . .github/common.sh && down_ip
 
-      - name: backup original data, merge
-        run: |
-          for key in $PROXYS_BAK $PROXYS; do
-            ret=`curl -H "$AUTH" "$CF_KV_API/$key"`
-            if echo "$ret"|grep error; then
-              grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
-            elif [ ! -z "$ret" ] && ! echo "$ret"|grep '443":\[\]'; then
-              echo "$ret" |tr -d '{ "[]}'|sed -r 's/\w+://g' |tr -s ',' '\n' >> ip.txt
-              # if [ $key == $PROXYS ]; then
-              #   curl -X PUT -H "$AUTH" -d "$ret" "$CF_KV_API/$PROXYS_BAK"
-              # fi
-              break;
-            fi
-          done
-          echo `cat $PROXYS_JSON`|tr -d '{ "[]}'|sed -r 's/\w+://g' |tr -s ',' '\n' >> ip.txt
-          cat ip.txt | sort | uniq > tmp.txt
-          mv tmp.txt ip.txt
-          echo merge `wc -l ip.txt` | tee $GITHUB_STEP_SUMMARY
+      - name: merge ip
+        run: . .github/common.sh && merge_ip
 
       - name: http test, filter
-        run: |
-          set +e
-          UA="Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 Chrome/107.0.0.0 Mobile Safari/537.36"
-          TRACE_URL="$TRACE_HOST$TRACE_PATH"
-          OPENAI_HOST='android.chat.openai.com'; OPENAI_PATH='/public-api/mobile/server_status/v1'; 
-          OPENAI_URL="$OPENAI_HOST$OPENAI_PATH"
-          X_HOST='twitter.com'
-          # ip port host path method?
-          req_data(){
-            local p=http; [ $2 -eq 443 ] && p=https
-            local m=HEAD; [ ! -z $5 ] && m=$5
-            echo '{"type":"http","target":"'$1'","locations":[{"country":"'$PING_COUNTRY'","limit":'$PING_LIMIT'}],"measurementOptions":{"port":'$2',"protocol":"'$p'","request":{"method":"'$m'","host":"'$3'","path":"'$4'"}}}'
-          }
-          # ret
-          get_avg(){
-            local n=$PING_LIMIT avg=0
-            local m=`echo $1|tr -s '{,}' '\n'|grep total|cut -d ':' -f2`
-            for t in $m; do 
-              [ $t = null ] && n=$(($n-1)) || avg=$(($avg+$t)); 
-            done
-            [ $n -gt 0 ] && echo $(($avg/$n)) || echo 0
-          }
-          # data
-          measure(){
-            local url=`curl -H "content-type: application/json" -A "$UA" \
-              -d "$1" -si "$PING_API"|grep location|awk '{print $2}'|tr -d '\n\r'`
-            [ -z $url ] && echo 'error: no url' && exit 1
-            sleep 1
-            while true; do
-              local r=`curl -A "$UA" -s "$url"`
-              grep -q 'in-progress' <<< "$r" && sleep 1 && continue;
-              break;
-            done
-            echo -n "$url" >&2
-            echo "$r"
-          }
-          # ip port
-          measure_http(){
-            [ -z $1 ] && echo 'error: no ip' && return
-            local ip=$1 port=$2
-            [ -z "$port" ] && port=443
-            local d=`req_data "$ip" $port "$TRACE_HOST" "$TRACE_PATH"`
-            local r=`measure $d`
-            local avg=0
-            avg=`get_avg "$r"`
-            local msg=" $ip:$port $avg"
-            case "$r" in
-              #*authorized\":*)
-                #local d=`echo $r|tr -s '{,.}' '\n'|grep expiresAt|grep -v null|tr -s '"T' ' '|awk '{printf "%s %s\n",$3,$4}'|head -n 1`
-                #[ -z "$d" ] || [ $((`date -d "$d" +%s`-`date +%s`)) -lt 86400 ]
-             *cloudflare*statusCode\":200*)
-                echo "$msg"
-                [ $avg -gt 0 ] && [ $avg -lt $HTTP_DELAY ] && echo "$ip" >> ip$port.txt;
-                ;;
-              *)
-                echo
-                ;;
-            esac
-          }
-          measure_openai(){
-            [ -z $1 ] && echo 'error: no ip' && return
-            local ip=$1 port=443
-            # https://api.openai.com/compliance/cookie_requirements 
-            local d=`req_data "$ip" $port "$OPENAI_HOST" "$OPENAI_PATH" GET`
-            local r=`measure $d`
-            local avg=0
-            avg=`get_avg "$r"`
-            local msg=" $ip:$port $avg"
-            case "$r" in
-              *status\\\":\\\"normal*statusCode\":200*)
-                echo "$msg normal"
-                echo "$ip" >> ipopenai.txt
-                ;;
-              #*disallowed\ ISP*)
-              #  echo "$msg disallowed ISP"
-              #	[ $avg -gt 0 ] && [ $avg -lt $HTTP_DELAY ] && echo "$ip" >> ip$port.txt
-              #	;;
-              #*unsupported_country*)
-              #  echo "$msg unsupported_country"
-              #	[ $avg -gt 0 ] && [ $avg -lt $HTTP_DELAY ] && echo "$ip" >> ip$port.txt
-              #	;;
-              *)
-                echo "$msg"
-                ;;
-            esac
-          }
+        run: . .github/common.sh && test_ip
 
-          probe_http(){
-            [ -z $1 ] && echo 'error: no ip' && return
-            local ip=$1 port=$2 p=http
-            [ -z "$2" ] && port=443
-            [ $port -eq 443 ] && p=https
-            eval `curl -I --connect-timeout 5 -so /dev/null -w 'local code=%{http_code} time=%{time_connect}' --connect-to $TRACE_HOST:$port:$ip:$port $p://$TRACE_URL`
-            
-            if [ "$code" = 200 ]; then
-              local ms=`echo "scale=0; $time*1000/1" | bc`
-              if [ $ms -gt 0 ] && [ $ms -lt $HTTP_DELAY ]; then
-                echo $ip:$port $ms
-                echo $ip >> ip$port.txt
-              fi
-            fi
-          }
-          probe_openai(){
-            [ -z $1 ] && echo 'error: no ip' && return
-            local ip=$1 port=443 p=https
-            local r=`curl -A "UA" --connect-timeout 5 -s -w ' code=%{http_code}' --connect-to $OPENAI_HOST:$port:$ip:$port $p://$OPENAI_URL`
-            eval `echo $r|sed -r 's/^.*(code=.*)$/local \1/'`
-            [ ! -z $code ] && [ $code != 000 ] && echo $ip:$port $r
-            if [ $code = 200 ]; then
-              echo $ip >> ipopenai.txt
-            elif [ $code != 400 ] || echo "$r"|grep 'html'; then
-              sed -i '/'$ip'/d' ip$port.txt
-            fi
-          }
-          probe_x(){
-            [ -z $1 ] && echo 'error: no ip' && return
-            local ip=$1 port=443 p=https
-            eval `curl -A "UA" --connect-timeout 5 -so /dev/null -w 'local code=%{http_code}' --connect-to $X_HOST:$port:$ip:$port $p://$X_HOST/`
-            if [ "$code" = 302 ] || [ "$code" = 200 ]; then
-              echo $ip >> ipx.txt
-            fi
-          }
-
-          # while IFS= read -r ip; do
-            # measure_http $ip 443
-          # done < ip.txt
-          # while IFS= read -r ip; do
-            # measure_openai $ip
-            # measure_http $ip 80
-          # done < ip443.txt
-          while IFS= read -r ip; do
-            probe_http $ip 443
-          done < ip.txt
-          echo "databak={\"443\":[$(echo `sed -r 's/^(.*)$/"\1"/' ip443.txt`|tr -s ' ' ',')]}" >> $GITHUB_ENV;
-          while IFS= read -r ip; do
-            probe_http $ip 80
-            probe_openai $ip
-            probe_x $ip
-            [ `sed -n '$=' ipx.txt` -ge 300 ] && [ `sed -n '$=' ip80.txt` -ge 10 ] && break;
-          done < ip443.txt
-          echo `wc -l ip443.txt`| tee $GITHUB_STEP_SUMMARY
-          echo `wc -l ip80.txt` | tee -a $GITHUB_STEP_SUMMARY
-          echo `wc -l ipopenai.txt`| tee -a $GITHUB_STEP_SUMMARY
-          echo `wc -l ipx.txt`| tee -a $GITHUB_STEP_SUMMARY
-
-      - id: put-data
-        name: update valid ip to server
-        run: |
-          data=
-          for i in 443 80 openai x; do
-            [ ! -z $data ] && data=$data,
-            if [ -s ip$i.txt ]; then
-              head -n 300 ip$i.txt > tmp && mv tmp ip$i.txt
-              data=$data\"$i\":[$(echo `sed -r 's/^(.*)$/"\1"/' ip$i.txt`|tr -s ' ' ',')]
-            else
-              data=$data\"$i\":[]
-            fi
-          done
-          data={$data}
-          curl -X PUT -H "$AUTH" -d "$databak" "$CF_KV_API/$PROXYS_BAK"
-          curl -X PUT -H "$AUTH" -d "$data" "$CF_KV_API/$PROXYS"
-          curl -X PUT -H "$AUTH" -d "`date '+%F %T %Z%z'`" "$CF_KV_API/$PROXYS_UPDATED"
-          # echo "data=$data" >> $GITHUB_OUTPUT
-
-          echo $data > $PROXYS_JSON
-          if [ `git diff $PROXYS_JSON | wc -l` != 0 ]; then
-            git config user.name "GitHub Actions Bot"
-            git config user.email "<>"
-            git add $PROXYS_JSON
-            git commit -m "update $PROXYS_JSON"
-            git push
-            echo "$PROXYS_JSON changed." >> $GITHUB_STEP_SUMMARY
-            echo "shouldDeploy=true" >> $GITHUB_OUTPUT
-          fi
+      - id: put-ip
+        name: put ip to KV
+        run: . .github/common.sh && put_ip
 
       - name: upload ip file
         uses: actions/upload-artifact@v4
