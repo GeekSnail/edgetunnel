@@ -210,7 +210,7 @@ test_ip(){
     [ -z $1 ] && echo 'error: no ip' && return
     local ip=$1 port=443 p=https
     eval `curl -A "UA" --connect-timeout 5 -so /dev/null -w 'local code=%{http_code}' --connect-to $X_HOST:$port:$ip:$port $p://$X_HOST/`
-    if [ "$code" = 302 ] || [ "$code" = 200 ]; then
+    if [ "$code" = 301 ] || [ "$code" = 302 ] || [ "$code" = 200 ]; then
       echo $ip >> ipx.txt
     fi
   }
@@ -373,7 +373,7 @@ prepare_data(){
   if [ ! -z "$proxys" ]; then
     echo $proxys > $PROXYS_JSON
   elif ! grep '"' $PROXYS_JSON; then
-    ret=`curl -H "$AUTH" "$CF_KV_API/$PROXYS"`
+    ret=`curl -H "$AUTH" "$CF_KV_API/proxys"`
     grep error <<< "$ret" && echo "$ret" >> $GITHUB_STEP_SUMMARY && exit 1 || echo "$ret" > $PROXYS_JSON
   fi
 }

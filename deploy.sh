@@ -3,7 +3,6 @@
 #-----------------------------------------------
 KV=KV
 UUID=UUID
-PROXYS=proxys
 ENTRY=dist/_worker.js
 NAME_PAT='^[a-z0-9]+(\-[a-z0-9]+)*[a-z0-9]*$'
 AUTH="Authorization:Bearer $CF_API_TOKEN"
