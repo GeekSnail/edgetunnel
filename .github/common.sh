@@ -269,22 +269,22 @@ put_ip() {
 # cfhost workflow
 check_cfhost() {
   check_secrets
+  json_array_tolines $CFHOST_JSON > local.txt
+  echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
   if orig_owner && week_plan; then
     [ $EVENT_NAME = workflow_call ] && git pull --rebase
     echo check $CFHOSTPAT_JSON ...
     node $CFHOSTPAT_JS toLines > pat.txt
     filterhost pat.txt handlePat
-  fi
-  
-  json_array_tolines $CFHOST_JSON > local.txt
-  echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
-  if orig_owner && week_plan && [ -s local.txt ]; then
-    echo check $CFHOST_JSON ...
-    filterhost local.txt > tmp
-    [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
-    file_lines_tojson tmp > $CFHOST_JSON
-    mv tmp local.txt
-    echo "filter, `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
+
+    if [ -s local.txt ]; then
+      echo check $CFHOST_JSON ...
+      filterhost local.txt > tmp
+      [ ! -s tmp ] && echo 'maybe filterhost error!' && exit 1
+      file_lines_tojson tmp > $CFHOST_JSON
+      mv tmp local.txt
+      echo "filter, `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
+    fi
   fi
   
   local ret=`curl -H "$AUTH" "$CF_KV_API/$CFHOST"`
