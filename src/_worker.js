@@ -127,9 +127,10 @@ export default {
             });
           }
           case `/bestip/${userID}`: {
-            return fetch(`https://bestip.06151953.xyz/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, {
-              headers: request.headers,
-            });
+            // return fetch(`https://bestip.06151953.xyz/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, {
+            //   headers: request.headers,
+            // });
+            return Response.redirect(`https://bestip.06151953.xyz/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, 301);
           }
           case "/":
             const { cf: c } = request;
@@ -166,7 +167,7 @@ export default {
           cf.loadProxys();
         }
         console.log(
-          `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80]?.length}(80) ${cf.proxys["openai"]?.length}(openai) ${cf.proxys["x"]?.length}(x), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`
+          `fetch() ${cf.proxys[443].length}(443) ${cf.proxys[80]?.length}(80) ${cf.proxys["openai"]?.length}(openai) ${cf.proxys["x"]?.length}(x), ${cf.cfhost.size}, kv loaded: proxys ${cf.proxysLoaded}, cfhost ${cf.cfhostLoaded}, raw ${cf.cfhostRaw}`,
         );
         return await vOverWSHandler(request);
       }
@@ -281,7 +282,7 @@ async function vOverWSHandler(request) {
         abort(reason) {
           log(`readableWebSocketStream is abort`, JSON.stringify(reason));
         },
-      })
+      }),
     )
     .catch(err => {
       log("readableWebSocketStream pipeTo error", err);
@@ -607,7 +608,7 @@ async function remoteSocketToWS(remoteSocket, webSocket, vResponseHeader, log) {
         abort(reason) {
           console.error(`remoteConnection!.readable abort`, reason);
         },
-      })
+      }),
     )
     .catch(error => {
       console.error(`remoteSocketToWS has exception `, error.stack || error);
@@ -755,7 +756,7 @@ async function handleUDPOutBound(webSocket, vResponseHeader, log) {
                 "content-type": "application/dns-message",
               },
               body: chunk,
-            }
+            },
           );
           const dnsQueryResult = await resp.arrayBuffer();
           const udpSize = dnsQueryResult.byteLength;
@@ -771,7 +772,7 @@ async function handleUDPOutBound(webSocket, vResponseHeader, log) {
             }
           }
         },
-      })
+      }),
     )
     .catch(error => {
       log("dns udp has error" + error);
@@ -794,7 +795,7 @@ const cl = "Y2xhc2g=";
 const ed = "RWRnZVR1bm5lbA==";
 function vBaseConfig(id, addr, port, host, tls = false, mark = "") {
   const scp = tls ? `security=tls&sni=${host}` : "security=none";
-  return `${atob(pt)}://${id}${atob(at)}${addr}:${port}?${scp}&encryption=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2048#${addr}${mark}`;
+  return `${atob(pt)}://${id}${atob(at)}${addr}:${port}?${scp}&encryption=none&fp=chrome&type=ws&host=${host}&path=%2F%3Fed%3D2048#${addr}${mark}`;
 }
 /**
  *
@@ -860,8 +861,8 @@ function getConfig(userID, hostName) {
     <p><a href="${subUrl}" class="btn" target="_blank">${atob(pt)}订阅</a> | 
       <a href="${atob(cl)}://install-config?url=${encodeURIComponent(subUrl)}" class="btn" target="_blank">${atob(cl)}订阅</a> | 
       <a href="https://url.v1.mk/sub?target=${atob(cl)}&url=${encodeURIComponent(
-    subUrl
-  )}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true" class="btn" target="_blank">转${atob(cl)}格式</a> | 
+        subUrl,
+      )}&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true" class="btn" target="_blank">转${atob(cl)}格式</a> | 
       <a href="//${hostName}/bestip/${userID}" class="btn" target="_blank">优选IP·订阅</a>
     </p>
   </div>
@@ -891,7 +892,7 @@ async function createSub(userID, headers) {
     let ps = cfipApi.map(u =>
       fetch(u, { headers })
         .then(r => r.text())
-        .catch(e => "")
+        .catch(e => ""),
     );
     let ips = await Promise.allSettled(ps).then(rs => rs.reduce((acc, r) => (!r.value.includes("html") && acc.push(...r.value.split(/[^\.\d]+/)), acc), []).filter(e => e));
     if (ips.length) domains.push(...ips.slice(0, 90));
