@@ -81,7 +81,7 @@ down_ip() {
 merge_ip(){
   for key in $PROXYS_BAK $PROXYS; do
     local ret=`curl -H "$AUTH" "$CF_KV_API/$key"`
-    if echo "$ret"|grep error; then
+    if echo "$ret"|grep -qE 'success": ?false'; then
       grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
     elif [ ! -z "$ret" ] && ! grep -e '443":\s*\[\]' <<< "$ret"; then
       echo "$ret" |tr -d '{ "[]}'|sed -r 's/\w+://g' |tr -s ',' '\n' >> ip.txt
@@ -289,7 +289,7 @@ check_cfhost() {
   fi
   
   local ret=`curl -H "$AUTH" "$CF_KV_API/$CFHOST"`
-  if echo "$ret"|grep error; then
+  if echo "$ret"|grep -qE 'success": ?false'; then
     grep 'namespace not found' <<< "$ret" && exit 1 || echo "$ret"
   elif [ ! -z "$ret" ] && [ "$ret" != "[]" ]; then
     json_array_tolines $ret > remote.txt
@@ -297,7 +297,7 @@ check_cfhost() {
     
     if once_day || week_plan; then
       local bak=`curl -H "$AUTH" "$CF_KV_API/$CFHOST_BAK"`
-      if ! echo "$bak"|grep error && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
+      if ! echo "$bak"|grep -qE 'success": ?false' && [ ! -z "$bak" ] && [ "$bak" != "[]" ]; then
         json_array_tolines $bak > remote_bak.txt
         cat remote_bak.txt >> remote.txt
         sort -uo remote.txt remote.txt
@@ -331,17 +331,17 @@ check_cfhost() {
       # head -1000 remote.txt > tmp
       # tail --lines=+1001 remote.txt >> remains.txt && mv tmp remote.txt
       local remains=`file_lines_tojson remains.txt`
-      ret=`file_lines_tojson remote.txt`
-      if [ "$ret" != "$bak" ]; then 
+      local filtered=`file_lines_tojson remote.txt`
+      if [ "$filtered" != "$bak" ]; then 
         echo "kvCfhostChanged=true" >> $GITHUB_ENV;
         # echo `comm -23 remote.txt remote_bak.txt`
-        curl -X PUT -H "$AUTH" -d "$ret" "$CF_KV_API/$CFHOST_BAK"
+        curl -X PUT -H "$AUTH" -d "$filtered" "$CF_KV_API/$CFHOST_BAK"
       fi
       curl -X PUT -H "$AUTH" -d "$remains" "$CF_KV_API/$CFHOST"
     else
-      local rst=`file_lines_tojson remote.txt`
-      if [ "$rst" != "$ret" ]; then
-        curl -X PUT -H "$AUTH" -d "$rst" "$CF_KV_API/$CFHOST"
+      local filtered=`file_lines_tojson remote.txt`
+      if [ "$filtered" != "$ret" ]; then
+        curl -X PUT -H "$AUTH" -d "$filtered" "$CF_KV_API/$CFHOST"
       fi
     fi
   fi
