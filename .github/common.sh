@@ -272,7 +272,8 @@ check_cfhost() {
   json_array_tolines $CFHOST_JSON > local.txt
   echo "$CFHOST_JSON - `wc -l local.txt`" >> $GITHUB_STEP_SUMMARY
   if orig_owner && week_plan; then
-    [ $EVENT_NAME = workflow_call ] && git pull --rebase
+    # [ "${{ github.event.workflow }}" != ".github/workflows/update_host.yml" ]
+    git pull --rebase
     echo check $CFHOSTPAT_JSON ...
     node $CFHOSTPAT_JS toLines > pat.txt
     filterhost pat.txt handlePat
