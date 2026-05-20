@@ -67,7 +67,7 @@ generate_bindings(){
 	echo $bindings
 }
 generate_configs(){
-	local configs=='"env_vars":{"'$UUID'":{"type":"plain_text","value":"'$1'"}}'
+	local configs='"env_vars":{"'$UUID'":{"type":"plain_text","value":"'$1'"}}'
 	[ ! -z $CF_NAMESPACE_ID ] && configs+=',"kv_namespaces":{"'$KV'":{"namespace_id":"'$CF_NAMESPACE_ID'"}}'
 	echo $configs
 }
