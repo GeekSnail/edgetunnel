@@ -99,6 +99,11 @@ jobs:
           # https://github.com/orgs/community/discussions/25797#discussioncomment-3249294
           fetch-depth: 0
 
+      - name: setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
       - id: check-cfhost
         name: check cfhost, filter, backup
         run: . .github/common.sh && check_cfhost
@@ -116,13 +121,8 @@ jobs:
         name: prepare cfhost.json proxys.json
         run: . .github/common.sh && prepare_data
 
-      - name: setup node
-        if: steps.prepare-data.conclusion == 'success'
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
       - id: build
+        if: steps.prepare-data.conclusion == 'success'
         name: build worker
         run: |
           npm i

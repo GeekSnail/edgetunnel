@@ -14,7 +14,6 @@ const domains = [
   "cambridge.org",
   "cf.090227.xyz",
   "cf.877774.xyz",
-  "cf.zhetengsha.eu.org",
   "codecanyon.net",
   "crazygames.com",
   "deepl.com",
@@ -126,7 +125,7 @@ export default {
             });
           }
           case `/bestip/${userID}`: {
-            return fetch(`https://sub.cmliussss.net/sub?host=${request.headers.get("Host")}&uuid=${userID}&path=/&allowInsecure=1`, {
+            return fetch(`https://sub.cmliussss.net/sub?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, {
               headers: request.headers,
             });
             // return Response.redirect(`https://bestip.06151953.xyz/auto?host=${request.headers.get("Host")}&uuid=${userID}&path=/`, 301);

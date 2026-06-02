@@ -4,7 +4,7 @@ import readline from "node:readline";
 import { pathToFileURL } from "url";
 import { createRequire } from "module";
 import inCfcidr from "../src/cfcidr.js";
-import cfhostpat from "../src/cfhostpat.json" assert { type: "json" };
+import cfhostpat from "../src/cfhostpat.json" with { type: "json" };
 import cfhostRE from "../src/cfhostpat.js";
 
 //https://forum.linuxfoundation.org/discussion/861047/lab-7-1-err-unsupported-esm-url-scheme
