@@ -184,8 +184,8 @@
         <label for="modeSelect">出口反代模式 (实时生效)</label>
         <span class="desc">选择后，下方的单节点链接与订阅链接将同步更新</span>
         <select id="modeSelect" onchange="updateUI()">
-          <option value="ip">🌐 优选独立 Proxy IP (主流云厂商/数据中心) - 适合日常代理与加速</option>
-          <option value="nat64">🚀 NAT64 IPv6 动态透传 (美国/英国本地ISP) - 强制分配纯净出口，解锁更多应用</option>
+          <option value="">🌐 优选独立 Proxy IP (主流云厂商/数据中心) - 适合日常代理与加速</option>
+          <option value="nat64">🚀 NAT64 IPv6 动态透传 (美国本地ISP) - 强制分配纯净出口，解锁更多应用</option>
         </select>
         <div class="info">
           <strong>💡 无状态切换：</strong><br />
@@ -290,7 +290,7 @@
       }
       // init
       document.addEventListener("DOMContentLoaded", () => {
-        const savedMode = localStorage.getItem("pm") || "nat64";
+        const savedMode = localStorage.getItem("pm") || ""; // ip
         document.getElementById("modeSelect").value = savedMode;
         updateUI();
       });
