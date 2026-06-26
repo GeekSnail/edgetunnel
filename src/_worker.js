@@ -59,7 +59,8 @@ const domains = [
   "wto.org",
   "www.gov.se",
 ];
-const PREFIXES = { NL: ["2a02:898:146:64::"], US: ["2602:fc59:11:64::", "2602:fc59:b0:64::"] };
+// const PREFIXES = { NL: ["2a02:898:146:64::"], US: ["2602:fc59:11:64::", "2602:fc59:b0:64::"] };
+const PREFIXES = { US: ["2602:fc59:b0:64::"] };
 const at = "QA==";
 const vl = "dmxlc3M=";
 const vr = "djJyYXk=";
@@ -71,7 +72,7 @@ let userID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 let cfipApi = ["https://ip.164746.xyz/ipTop10.html", "https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt"];
 let dohURL = "https://cloudflare-dns.com/dns-query"; // or https://dns.google/dns-query
 let proxyMode = "nat64"; // or "ip"
-let proxyCountry = "NL"; // or "US"
+let proxyCountry = "US"; // or "NL"
 
 const cf = new CF({ proxys, cfhost });
 
@@ -844,9 +845,15 @@ function decodeUI(hex) {
 }
 
 function vBaseConfig(id, addr, port, host, tls = false, mode = "nat64", mark = "") {
-  const scp = tls ? `security=tls&sni=${host}` : "security=none";
+  let sc = "security=none";
+  let suffix = port;
+  if (tls) {
+    sc = `security=tls&sni=${host}`;
+    suffix = "tls-" + suffix;
+  }
+  if (mode == "nat64") suffix += "-nat64";
   const path = encodeURIComponent(`/?pm=${mode}`);
-  return `${atob(vl)}://${id}${atob(at)}${addr}:${port}?${scp}&encryption=none&fp=chrome&type=ws&host=${host}&path=${path}#${addr}${mark}${mode == "nat64" ? "-nat64" : ""}`;
+  return `${atob(vl)}://${id}${atob(at)}${addr}:${port}?${sc}&encryption=none&fp=chrome&type=ws&host=${host}&path=${path}#${mark}${addr}-${suffix}`;
 }
 
 function vSampleConfig(userID, host) {
@@ -867,6 +874,11 @@ function getUI(userID, host) {
 
 // ==================== 生成订阅配置 ====================
 async function createSub(userID, headers, mode) {
+  const portSet_http = [80, 8080, 8880, 2052, 2086, 2095, 2082];
+  const portSet_https = [443, 8443, 2053, 2096, 2087, 2083];
+  const hostName = headers.get("Host");
+  const configs = [];
+  let geos = {};
   if (!/\.(\d+)$/.test(domains[domains.length - 1])) {
     let ps = cfipApi.map(u =>
       fetch(u, { headers })
@@ -874,26 +886,53 @@ async function createSub(userID, headers, mode) {
         .catch(e => ""),
     );
     let ips = await Promise.allSettled(ps).then(rs => rs.reduce((acc, r) => (!r.value.includes("html") && acc.push(...r.value.split(/[^\.\d]+/)), acc), []).filter(e => e));
-    if (ips.length) domains.push(...ips);
+    if (ips.length) {
+      domains.push(...ips);
+      geos = await geoLookupBatch(ips);
+    }
   }
-  const configs = [];
-  const portSet_http = [80, 8080, 8880, 2052, 2086, 2095, 2082];
-  const portSet_https = [443, 8443, 2053, 2096, 2087, 2083];
-  const hostName = headers.get("Host");
 
   if (hostName.includes("workers.dev")) {
     for (const port of portSet_http) {
-      for (const domain of domains) {
-        configs.push(vBaseConfig(userID, domain, port, hostName, false, mode, `-HTTP-${port}`));
+      for (const addr of domains) {
+        const mark = geos[addr] ? `${geos[addr].countryCode}-${geos[addr].region}-${geos[addr].city}-` : "";
+        configs.push(vBaseConfig(userID, addr, port, hostName, false, mode, mark));
       }
     }
   } else {
     domains.push(hostName);
     for (const port of portSet_https) {
-      for (const domain of domains) {
-        configs.push(vBaseConfig(userID, domain, port, hostName, true, mode, `-HTTPS-${port}`));
+      for (const addr of domains) {
+        const mark = geos[addr] ? `${geos[addr].countryCode}-${geos[addr].region}-${geos[addr].city}-` : "";
+        configs.push(vBaseConfig(userID, addr, port, hostName, true, mode, mark));
       }
     }
   }
   return btoa(configs.join("\n"));
+}
+async function geoLookupBatch(ips) {
+  const dict = {};
+
+  const res = await fetch("http://ip-api.com/batch?fields=query,countryCode,regionName,city,timezone,status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ips),
+  });
+  if (!res.ok) throw new Error(`ip-api request failed: ${res.status}`);
+
+  const data = await res.json();
+  for (const item of data) {
+    if (item.status === "success") {
+      dict[item.query] = {
+        ip: item.query,
+        country: item.country,
+        countryCode: item.countryCode,
+        region: item.regionName,
+        city: item.city,
+        timezone: item.timezone,
+      };
+    }
+  }
+
+  return dict;
 }
